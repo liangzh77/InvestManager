@@ -14,6 +14,12 @@ export default function Home() {
 
           <div className="space-y-2">
             <Link
+              href="/projects"
+              className="block w-full px-4 py-2 bg-green-500 text-white text-center rounded hover:bg-green-600 transition-colors"
+            >
+              项目管理
+            </Link>
+            <Link
               href="/api-test"
               className="block w-full px-4 py-2 bg-blue-500 text-white text-center rounded hover:bg-blue-600 transition-colors"
             >
