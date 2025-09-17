@@ -10,7 +10,11 @@
       "Bash(node:*)",
       "Bash(fuser:*)",
       "WebFetch(domain:localhost)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(start http://localhost:3000/api-test)",
+      "Bash(start http://localhost:3001)",
+      "Bash(start http://localhost:3001/api-test)",
+      "Bash(/bashes)"
     ],
     "deny": [],
     "ask": []

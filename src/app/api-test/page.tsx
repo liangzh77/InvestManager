@@ -1,1080 +1,541 @@
 'use client';
 
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useState, useEffect } from 'react';
 
 export default function ApiTestPage() {
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleApiCall = async (url: string, method: string = 'GET', body?: any) => {
+  // 项目相关的表单状态
+  const [projectForm, setProjectForm] = useState({
+    项目名称: '',
+    项目代号: '',
+    交易类型: '做多' as '做多' | '做空',
+    当前价: '',
+    状态: '进行' as '进行' | '完成'
+  });
+
+  // 交易相关的表单状态
+  const [transactionForm, setTransactionForm] = useState({
+    项目ID: '',
+    交易名称: '',
+    状态: '计划' as '计划' | '完成',
+    交易类型: '做多' as '做多' | '做空' | '多头平仓' | '空头平仓',
+    警告方向: '向上' as '向上' | '向下',
+    交易价: '',
+    股数: '',
+    仓位: '',
+    交易金额: ''
+  });
+
+  const [totalAmount, setTotalAmount] = useState('100000'); // 总金额，用于计算仓位
+
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedTransactionId, setSelectedTransactionId] = useState('');
+
+  // 从localStorage加载缓存数据
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const cachedData = localStorage.getItem('apiTestFormData');
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          if (parsed.projectForm) setProjectForm(parsed.projectForm);
+          if (parsed.transactionForm) setTransactionForm(parsed.transactionForm);
+          if (parsed.totalAmount) setTotalAmount(parsed.totalAmount);
+          if (parsed.selectedProjectId) setSelectedProjectId(parsed.selectedProjectId);
+          if (parsed.selectedTransactionId) setSelectedTransactionId(parsed.selectedTransactionId);
+        } catch (error) {
+          console.error('Failed to load cached data:', error);
+        }
+      }
+    }
+  }, []);
+
+  // 保存数据到localStorage
+  const saveToCache = () => {
+    if (typeof window !== 'undefined') {
+      const dataToCache = {
+        projectForm,
+        transactionForm,
+        totalAmount,
+        selectedProjectId,
+        selectedTransactionId
+      };
+      localStorage.setItem('apiTestFormData', JSON.stringify(dataToCache));
+    }
+  };
+
+  // 清除缓存
+  const clearCache = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('apiTestFormData');
+    }
+  };
+
+  // 计算交易金额和仓位
+  const calculateTransactionValues = (股数: string, 交易价: string, 总金额: string) => {
+    const shares = parseFloat(股数) || 0;
+    const price = parseFloat(交易价) || 0;
+    const total = parseFloat(总金额) || 0;
+
+    const 交易金额 = shares * price;
+    const 仓位 = total > 0 ? (交易金额 / total) * 100 : 0;
+
+    return {
+      交易金额: 交易金额.toFixed(2),
+      仓位: 仓位.toFixed(2)
+    };
+  };
+
+  // 更新交易表单的股数时自动计算
+  const updateTransactionShares = (股数: string) => {
+    const calculated = calculateTransactionValues(股数, transactionForm.交易价, totalAmount);
+    setTransactionForm(prev => ({
+      ...prev,
+      股数,
+      交易金额: calculated.交易金额,
+      仓位: calculated.仓位
+    }));
+  };
+
+  // 更新交易价时自动计算
+  const updateTransactionPrice = (交易价: string) => {
+    const calculated = calculateTransactionValues(transactionForm.股数, 交易价, totalAmount);
+    setTransactionForm(prev => ({
+      ...prev,
+      交易价,
+      交易金额: calculated.交易金额,
+      仓位: calculated.仓位
+    }));
+  };
+
+  const apiCall = async (url: string, options: RequestInit = {}) => {
     setLoading(true);
     try {
-      const options: RequestInit = {
-        method,
+      const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
+          ...options.headers,
         },
-      };
-
-      if (body && method !== 'GET') {
-        options.body = JSON.stringify(body);
-      }
-
-      const response = await fetch(url, options);
-      let data;
-
-      // 首先获取响应文本，然后尝试解析JSON
-      const responseText = await response.text();
-
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        // 如果无法解析JSON，返回原始文本
-        data = { error: '无法解析响应JSON', rawResponse: responseText };
-      }
-
-      setResult({
-        status: response.status,
-        statusText: response.statusText,
-        url,
-        method,
-        requestBody: body,
-        data,
-        timestamp: new Date().toISOString(),
-        success: response.ok
+        ...options,
       });
-    } catch (error) {
-      setResult({
-        error: `网络错误: ${error.message}`,
-        url,
-        method,
-        requestBody: body,
-        timestamp: new Date().toISOString(),
-        success: false
-      });
+      const data = await response.json();
+      setResult({ url, status: response.status, data });
+    } catch (error: any) {
+      setResult({ url, error: error.message });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">API 测试工具</h1>
+    <div className="min-h-screen bg-gray-50">
+      <div className="container mx-auto p-4">
+        <h1 className="text-3xl font-bold mb-4 text-center">投资管理API测试页面</h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* 左侧：API测试区域 */}
-          <div className="space-y-6">
-            <ScrollArea className="h-[calc(100vh-120px)]">
-              <div className="space-y-6 pr-4">
-                {/* 项目管理API */}
-                <ProjectApiTest onApiCall={handleApiCall} />
+        {/* 缓存控制按钮 */}
+        <div className="flex justify-center gap-4 mb-6">
+          <button
+            onClick={saveToCache}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          >
+            缓存表单数据
+          </button>
+          <button
+            onClick={clearCache}
+            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+          >
+            清除缓存
+          </button>
+        </div>
 
-                {/* 交易管理API */}
-                <TransactionApiTest onApiCall={handleApiCall} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-180px)]">
+          {/* 左侧控制面板 */}
+          <div className="overflow-y-auto h-full bg-white rounded-lg shadow p-4">
+            <h2 className="text-xl font-semibold mb-4 sticky top-0 bg-white pb-2 border-b">API测试控制面板</h2>
 
-                {/* 基金管理API */}
-                <FundApiTest onApiCall={handleApiCall} />
+            <div className="space-y-6">
+              {/* 项目管理 API */}
+              <div className="border rounded-lg p-4 bg-blue-50">
+                <h3 className="text-lg font-semibold mb-4 text-blue-800">项目管理 API</h3>
 
-                {/* 统计API */}
-                <StatisticsApiTest onApiCall={handleApiCall} />
+                {/* 项目表单 */}
+                <div className="mb-4 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="项目名称 *"
+                    value={projectForm.项目名称}
+                    onChange={(e) => setProjectForm({ ...projectForm, 项目名称: e.target.value })}
+                    className="w-full p-2 border rounded text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="项目代号"
+                    value={projectForm.项目代号}
+                    onChange={(e) => setProjectForm({ ...projectForm, 项目代号: e.target.value })}
+                    className="w-full p-2 border rounded text-sm"
+                  />
+                  <select
+                    value={projectForm.交易类型}
+                    onChange={(e) => setProjectForm({ ...projectForm, 交易类型: e.target.value as '做多' | '做空' })}
+                    className="w-full p-2 border rounded text-sm"
+                  >
+                    <option value="做多">做多</option>
+                    <option value="做空">做空</option>
+                  </select>
+                  <input
+                    type="number"
+                    placeholder="当前价"
+                    value={projectForm.当前价}
+                    onChange={(e) => setProjectForm({ ...projectForm, 当前价: e.target.value })}
+                    className="w-full p-2 border rounded text-sm"
+                  />
+                  <select
+                    value={projectForm.状态}
+                    onChange={(e) => setProjectForm({ ...projectForm, 状态: e.target.value as '进行' | '完成' })}
+                    className="w-full p-2 border rounded text-sm"
+                  >
+                    <option value="进行">进行</option>
+                    <option value="完成">完成</option>
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="项目ID (用于更新/删除)"
+                    value={selectedProjectId}
+                    onChange={(e) => setSelectedProjectId(e.target.value)}
+                    className="w-full p-2 border rounded text-sm bg-yellow-50"
+                  />
+                </div>
 
-                {/* 总览API */}
-                <OverviewApiTest onApiCall={handleApiCall} />
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => apiCall('/api/projects')}
+                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                  >
+                    获取所有项目
+                  </button>
+                  <button
+                    onClick={() => apiCall('/api/projects', {
+                      method: 'POST',
+                      body: JSON.stringify(projectForm)
+                    })}
+                    className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600 transition-colors"
+                  >
+                    创建项目
+                  </button>
+                  <button
+                    onClick={() => selectedProjectId && apiCall(`/api/projects/${selectedProjectId}`)}
+                    className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600 transition-colors disabled:bg-gray-300"
+                    disabled={!selectedProjectId}
+                  >
+                    获取单个项目
+                  </button>
+                  <button
+                    onClick={() => selectedProjectId && apiCall(`/api/projects/${selectedProjectId}`, {
+                      method: 'PUT',
+                      body: JSON.stringify(projectForm)
+                    })}
+                    className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 transition-colors disabled:bg-gray-300"
+                    disabled={!selectedProjectId}
+                  >
+                    更新项目
+                  </button>
+                  <button
+                    onClick={() => selectedProjectId && apiCall(`/api/projects/${selectedProjectId}`, {
+                      method: 'DELETE'
+                    })}
+                    className="px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors disabled:bg-gray-300"
+                    disabled={!selectedProjectId}
+                  >
+                    删除项目
+                  </button>
+                </div>
               </div>
-            </ScrollArea>
+
+              {/* 交易管理 API */}
+              <div className="border rounded-lg p-4 bg-green-50">
+                <h3 className="text-lg font-semibold mb-4 text-green-800">交易管理 API</h3>
+
+                {/* 交易表单 */}
+                <div className="mb-4 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="项目ID"
+                    value={transactionForm.项目ID}
+                    onChange={(e) => setTransactionForm({ ...transactionForm, 项目ID: e.target.value })}
+                    className="w-full p-2 border rounded text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="交易名称"
+                    value={transactionForm.交易名称}
+                    onChange={(e) => setTransactionForm({ ...transactionForm, 交易名称: e.target.value })}
+                    className="w-full p-2 border rounded text-sm"
+                  />
+                  <select
+                    value={transactionForm.状态}
+                    onChange={(e) => setTransactionForm({ ...transactionForm, 状态: e.target.value as '计划' | '完成' })}
+                    className="w-full p-2 border rounded text-sm"
+                  >
+                    <option value="计划">计划</option>
+                    <option value="完成">完成</option>
+                  </select>
+                  <select
+                    value={transactionForm.交易类型}
+                    onChange={(e) => setTransactionForm({ ...transactionForm, 交易类型: e.target.value as any })}
+                    className="w-full p-2 border rounded text-sm"
+                  >
+                    <option value="做多">做多</option>
+                    <option value="做空">做空</option>
+                    <option value="多头平仓">多头平仓</option>
+                    <option value="空头平仓">空头平仓</option>
+                  </select>
+                  <select
+                    value={transactionForm.警告方向}
+                    onChange={(e) => setTransactionForm({ ...transactionForm, 警告方向: e.target.value as '向上' | '向下' })}
+                    className="w-full p-2 border rounded text-sm"
+                  >
+                    <option value="向上">向上</option>
+                    <option value="向下">向下</option>
+                  </select>
+
+                  {/* 计算相关的输入框 */}
+                  <div className="bg-blue-50 p-3 rounded border">
+                    <div className="text-xs text-blue-800 mb-2 font-medium">💰 自动计算区域</div>
+                    <input
+                      type="number"
+                      placeholder="总金额 (用于计算仓位)"
+                      value={totalAmount}
+                      onChange={(e) => {
+                        setTotalAmount(e.target.value);
+                        // 重新计算仓位
+                        const calculated = calculateTransactionValues(transactionForm.股数, transactionForm.交易价, e.target.value);
+                        setTransactionForm(prev => ({ ...prev, 仓位: calculated.仓位 }));
+                      }}
+                      className="w-full p-2 border rounded text-sm mb-2 bg-blue-100"
+                    />
+                    <input
+                      type="number"
+                      placeholder="交易价 *"
+                      value={transactionForm.交易价}
+                      onChange={(e) => updateTransactionPrice(e.target.value)}
+                      className="w-full p-2 border rounded text-sm mb-2 border-blue-300"
+                    />
+                    <input
+                      type="number"
+                      placeholder="股数 *"
+                      value={transactionForm.股数}
+                      onChange={(e) => updateTransactionShares(e.target.value)}
+                      className="w-full p-2 border rounded text-sm mb-2 border-blue-300"
+                    />
+                    <input
+                      type="number"
+                      placeholder="交易金额 (自动计算)"
+                      value={transactionForm.交易金额}
+                      readOnly
+                      className="w-full p-2 border rounded text-sm mb-2 bg-gray-100 text-gray-700"
+                    />
+                    <input
+                      type="number"
+                      placeholder="仓位% (自动计算)"
+                      value={transactionForm.仓位}
+                      readOnly
+                      className="w-full p-2 border rounded text-sm bg-gray-100 text-gray-700"
+                    />
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="交易ID (用于更新/删除)"
+                    value={selectedTransactionId}
+                    onChange={(e) => setSelectedTransactionId(e.target.value)}
+                    className="w-full p-2 border rounded text-sm bg-yellow-50"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => apiCall('/api/transactions')}
+                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                  >
+                    获取所有交易
+                  </button>
+                  <button
+                    onClick={() => apiCall('/api/transactions', {
+                      method: 'POST',
+                      body: JSON.stringify(transactionForm)
+                    })}
+                    className="px-3 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600 transition-colors"
+                  >
+                    创建交易
+                  </button>
+                  <button
+                    onClick={() => selectedTransactionId && apiCall(`/api/transactions/${selectedTransactionId}`)}
+                    className="px-3 py-2 bg-purple-500 text-white rounded text-sm hover:bg-purple-600 transition-colors disabled:bg-gray-300"
+                    disabled={!selectedTransactionId}
+                  >
+                    获取单个交易
+                  </button>
+                  <button
+                    onClick={() => selectedTransactionId && apiCall(`/api/transactions/${selectedTransactionId}`, {
+                      method: 'PUT',
+                      body: JSON.stringify(transactionForm)
+                    })}
+                    className="px-3 py-2 bg-yellow-500 text-white rounded text-sm hover:bg-yellow-600 transition-colors disabled:bg-gray-300"
+                    disabled={!selectedTransactionId}
+                  >
+                    更新交易
+                  </button>
+                  <button
+                    onClick={() => selectedTransactionId && apiCall(`/api/transactions/${selectedTransactionId}`, {
+                      method: 'DELETE'
+                    })}
+                    className="px-3 py-2 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors disabled:bg-gray-300"
+                    disabled={!selectedTransactionId}
+                  >
+                    删除交易
+                  </button>
+                  <button
+                    onClick={() => transactionForm.项目ID && apiCall(`/api/transactions?projectId=${transactionForm.项目ID}`)}
+                    className="px-3 py-2 bg-indigo-500 text-white rounded text-sm hover:bg-indigo-600 transition-colors disabled:bg-gray-300"
+                    disabled={!transactionForm.项目ID}
+                  >
+                    按项目查询交易
+                  </button>
+                </div>
+              </div>
+
+              {/* 统计 API */}
+              <div className="border rounded-lg p-4 bg-purple-50">
+                <h3 className="text-lg font-semibold mb-4 text-purple-800">统计 API</h3>
+
+                {/* 总金额更新 */}
+                <div className="mb-4 space-y-2">
+                  <label className="block text-sm font-medium text-purple-700">
+                    总投资金额（用于计算总仓位）
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      placeholder="总投资金额"
+                      value={totalAmount}
+                      onChange={(e) => setTotalAmount(e.target.value)}
+                      className="flex-1 p-2 border border-gray-300 rounded text-sm"
+                    />
+                    <button
+                      onClick={() => apiCall('/api/overview', {
+                        method: 'PUT',
+                        body: JSON.stringify({ 总金额: parseFloat(totalAmount) || 0 })
+                      })}
+                      className="px-3 py-2 bg-indigo-500 text-white rounded text-sm hover:bg-indigo-600 transition-colors"
+                    >
+                      更新总金额
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => apiCall('/api/overview')}
+                    className="px-3 py-2 bg-cyan-500 text-white rounded text-sm hover:bg-cyan-600 transition-colors"
+                  >
+                    获取总览统计
+                  </button>
+                  <button
+                    onClick={() => apiCall('/api/overview', { method: 'POST' })}
+                    className="px-3 py-2 bg-teal-500 text-white rounded text-sm hover:bg-teal-600 transition-colors"
+                  >
+                    刷新总览统计
+                  </button>
+                  <button
+                    onClick={() => apiCall('/api/statistics')}
+                    className="px-3 py-2 bg-orange-500 text-white rounded text-sm hover:bg-orange-600 transition-colors"
+                  >
+                    获取所有统计
+                  </button>
+                  <button
+                    onClick={() => selectedProjectId && apiCall(`/api/statistics/${selectedProjectId}`)}
+                    className="px-3 py-2 bg-pink-500 text-white rounded text-sm hover:bg-pink-600 transition-colors disabled:bg-gray-300"
+                    disabled={!selectedProjectId}
+                  >
+                    获取项目详细统计
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* 右侧：结果显示区域 */}
-          <div className="lg:sticky lg:top-6 lg:h-[calc(100vh-120px)]">
-            <Card className="h-full">
-              <CardHeader>
-                <CardTitle>API 返回结果</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-[calc(100vh-200px)]">
-                  {loading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          {/* 右侧结果显示 */}
+          <div className="h-full bg-white rounded-lg shadow">
+            <div className="sticky top-0 bg-white p-4 border-b rounded-t-lg">
+              <h2 className="text-xl font-semibold">API 返回结果</h2>
+            </div>
+            <div className="p-4 overflow-y-auto h-[calc(100%-80px)]">
+              {loading && (
+                <div className="flex items-center justify-center p-8">
+                  <div className="text-lg text-blue-600">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    请求中...
+                  </div>
+                </div>
+              )}
+
+              {result && !loading && (
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                    <strong className="text-blue-800">请求URL:</strong>
+                    <span className="ml-2 text-blue-700 font-mono text-sm">{result.url}</span>
+                  </div>
+
+                  {result.status && (
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <strong className="text-gray-800">状态码:</strong>
+                      <span className={`ml-3 px-3 py-1 rounded-full text-sm font-medium ${
+                        result.status >= 200 && result.status < 300
+                          ? 'bg-green-100 text-green-800 border border-green-300'
+                          : 'bg-red-100 text-red-800 border border-red-300'
+                      }`}>
+                        {result.status}
+                      </span>
                     </div>
-                  ) : result ? (
-                    <div className="space-y-4">
-                      {/* 请求信息 */}
-                      <div className="bg-blue-50 p-3 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="font-semibold text-blue-800">请求:</span>
-                          <span className="text-blue-600">{result.method || 'GET'}</span>
-                          <span className="text-blue-600 text-sm">{result.url}</span>
-                        </div>
-                        {result.requestBody && (
-                          <div className="mt-2">
-                            <span className="text-sm text-blue-700">请求体:</span>
-                            <pre className="mt-1 p-2 bg-blue-100 rounded text-xs overflow-auto">
-                              {JSON.stringify(result.requestBody, null, 2)}
-                            </pre>
-                          </div>
-                        )}
+                  )}
+
+                  {result.error && (
+                    <div className="bg-red-50 border border-red-200 p-4 rounded-lg">
+                      <strong className="text-red-800">错误:</strong>
+                      <span className="ml-2 text-red-700">{result.error}</span>
+                    </div>
+                  )}
+
+                  {result.data && (
+                    <div className="bg-gray-50 border rounded-lg">
+                      <div className="bg-gray-100 px-4 py-3 border-b rounded-t-lg">
+                        <strong className="text-gray-800">响应数据:</strong>
                       </div>
-
-                      {/* 响应状态 */}
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">响应状态:</span>
-                        <span className={`px-2 py-1 rounded text-sm font-medium ${
-                          result.success
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {result.status ? `${result.status} ${result.statusText}` : '网络错误'}
-                        </span>
-                      </div>
-
-                      {/* 时间戳 */}
-                      {result.timestamp && (
-                        <div className="text-sm text-gray-500">
-                          时间: {new Date(result.timestamp).toLocaleString()}
-                        </div>
-                      )}
-
-                      <Separator />
-
-                      {/* 错误详情 */}
-                      {!result.success && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                          <Label className="font-semibold text-red-800">错误详情:</Label>
-                          {result.error && (
-                            <div className="mt-2 p-2 bg-red-100 rounded text-red-700 text-sm">
-                              {result.error}
-                            </div>
-                          )}
-                          {result.data && result.data.error && (
-                            <div className="mt-2 p-2 bg-red-100 rounded text-red-700 text-sm">
-                              服务器错误: {result.data.error}
-                            </div>
-                          )}
-                          {result.data && result.data.rawResponse && (
-                            <div className="mt-2">
-                              <span className="text-sm text-red-700">原始响应:</span>
-                              <pre className="mt-1 p-2 bg-red-100 rounded text-xs overflow-auto text-red-600">
-                                {result.data.rawResponse}
-                              </pre>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* 响应数据 */}
-                      <div>
-                        <Label className="font-semibold">
-                          {result.success ? '响应数据:' : '完整响应:'}
-                        </Label>
-                        <pre className={`mt-2 p-4 rounded-lg text-sm overflow-auto ${
-                          result.success ? 'bg-green-50 border border-green-200' : 'bg-gray-100'
-                        }`}>
-                          {JSON.stringify(result.data || result.error || result, null, 2)}
+                      <div className="p-4">
+                        <pre className="text-sm overflow-auto bg-white p-4 rounded border border-gray-200 shadow-inner font-mono leading-relaxed">
+                          {JSON.stringify(result.data, null, 2)}
                         </pre>
                       </div>
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-32 text-gray-500">
-                      选择一个API进行测试
-                    </div>
                   )}
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                </div>
+              )}
+
+              {!result && !loading && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-gray-500">
+                    <div className="text-6xl mb-4">🚀</div>
+                    <div className="text-lg font-medium">点击左侧按钮测试API</div>
+                    <div className="text-sm text-gray-400 mt-2">API响应结果将在这里显示</div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-// 项目管理API测试组件
-function ProjectApiTest({ onApiCall }: { onApiCall: (url: string, method?: string, body?: any) => void }) {
-  const [projectData, setProjectData] = useState({
-    项目名称: '',
-    项目代号: '',
-    交易类型: '',
-    当前价: '',
-    创建时间: '',
-    完成时间: ''
-  });
-  const [projectId, setProjectId] = useState('');
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>项目管理 API</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* 获取项目列表 */}
-        <div>
-          <Button
-            onClick={() => onApiCall('/api/projects')}
-            className="w-full"
-          >
-            获取所有项目 (GET /api/projects)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 创建项目 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">创建新项目</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="项目名称"
-              value={projectData.项目名称}
-              onChange={(e) => setProjectData({...projectData, 项目名称: e.target.value})}
-            />
-            <Input
-              placeholder="项目代号"
-              value={projectData.项目代号}
-              onChange={(e) => setProjectData({...projectData, 项目代号: e.target.value})}
-            />
-            <Select value={projectData.交易类型} onValueChange={(value) => setProjectData({...projectData, 交易类型: value})}>
-              <SelectTrigger>
-                <SelectValue placeholder="交易类型" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="做多">做多</SelectItem>
-                <SelectItem value="做空">做空</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              placeholder="当前价"
-              type="number"
-              value={projectData.当前价}
-              onChange={(e) => setProjectData({...projectData, 当前价: e.target.value})}
-            />
-            <Input
-              placeholder="创建时间"
-              type="datetime-local"
-              value={projectData.创建时间}
-              onChange={(e) => setProjectData({...projectData, 创建时间: e.target.value})}
-            />
-            <Input
-              placeholder="完成时间"
-              type="datetime-local"
-              value={projectData.完成时间}
-              onChange={(e) => setProjectData({...projectData, 完成时间: e.target.value})}
-            />
-          </div>
-          <Button
-            onClick={() => onApiCall('/api/projects', 'POST', {
-              ...projectData,
-              当前价: projectData.当前价 ? Number(projectData.当前价) : undefined,
-              创建时间: projectData.创建时间 || undefined,
-              完成时间: projectData.完成时间 || undefined
-            })}
-            className="w-full"
-          >
-            创建项目 (POST /api/projects)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 项目操作 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">项目操作</Label>
-          <Input
-            placeholder="项目ID"
-            value={projectId}
-            onChange={(e) => setProjectId(e.target.value)}
-          />
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              onClick={() => onApiCall(`/api/projects/${projectId}`)}
-              disabled={!projectId}
-              size="sm"
-            >
-              获取详情
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/projects/${projectId}`, 'PUT', {
-                ...projectData,
-                当前价: projectData.当前价 ? Number(projectData.当前价) : undefined,
-                完成时间: projectData.完成时间 || undefined
-              })}
-              disabled={!projectId}
-              size="sm"
-            >
-              更新项目
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/projects/${projectId}`, 'DELETE')}
-              disabled={!projectId}
-              variant="destructive"
-              size="sm"
-            >
-              删除项目
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// 交易管理API测试组件
-function TransactionApiTest({ onApiCall }: { onApiCall: (url: string, method?: string, body?: any) => void }) {
-  const [transactionData, setTransactionData] = useState({
-    项目ID: '',
-    项目名称: '',
-    状态: '',
-    交易名称: '',
-    交易类型: '',
-    警告方向: '',
-    交易价: '',
-    止盈价: '',
-    止损价: '',
-    股数: '',
-    仓位: '',
-    交易金额: '',
-    创建时间: '',
-    交易时间: ''
-  });
-  const [transactionId, setTransactionId] = useState('');
-  const [queryProjectId, setQueryProjectId] = useState('');
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>交易管理 API</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* 获取交易列表 */}
-        <div className="space-y-2">
-          <Input
-            placeholder="按项目ID筛选（可选）"
-            value={queryProjectId}
-            onChange={(e) => setQueryProjectId(e.target.value)}
-          />
-          <Button
-            onClick={() => onApiCall(`/api/transactions${queryProjectId ? `?项目ID=${queryProjectId}` : ''}`)}
-            className="w-full"
-          >
-            获取交易列表 (GET /api/transactions)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 创建交易 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">创建新交易</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="项目ID *"
-              value={transactionData.项目ID}
-              onChange={(e) => setTransactionData({...transactionData, 项目ID: e.target.value})}
-            />
-            <Input
-              placeholder="项目名称"
-              value={transactionData.项目名称}
-              onChange={(e) => setTransactionData({...transactionData, 项目名称: e.target.value})}
-            />
-            <Select value={transactionData.状态} onValueChange={(value) => setTransactionData({...transactionData, 状态: value})}>
-              <SelectTrigger>
-                <SelectValue placeholder="状态 *" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="计划">计划</SelectItem>
-                <SelectItem value="完成">完成</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              placeholder="交易名称"
-              value={transactionData.交易名称}
-              onChange={(e) => setTransactionData({...transactionData, 交易名称: e.target.value})}
-            />
-            <Select value={transactionData.交易类型} onValueChange={(value) => setTransactionData({...transactionData, 交易类型: value})}>
-              <SelectTrigger>
-                <SelectValue placeholder="交易类型" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="做多">做多</SelectItem>
-                <SelectItem value="做空">做空</SelectItem>
-                <SelectItem value="多头平仓">多头平仓</SelectItem>
-                <SelectItem value="空头平仓">空头平仓</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={transactionData.警告方向} onValueChange={(value) => setTransactionData({...transactionData, 警告方向: value})}>
-              <SelectTrigger>
-                <SelectValue placeholder="警告方向" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="向上">向上</SelectItem>
-                <SelectItem value="向下">向下</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              placeholder="交易价 *"
-              type="number"
-              step="0.01"
-              value={transactionData.交易价}
-              onChange={(e) => setTransactionData({...transactionData, 交易价: e.target.value})}
-            />
-            <Input
-              placeholder="止盈价"
-              type="number"
-              step="0.01"
-              value={transactionData.止盈价}
-              onChange={(e) => setTransactionData({...transactionData, 止盈价: e.target.value})}
-            />
-            <Input
-              placeholder="止损价"
-              type="number"
-              step="0.01"
-              value={transactionData.止损价}
-              onChange={(e) => setTransactionData({...transactionData, 止损价: e.target.value})}
-            />
-            <Input
-              placeholder="股数 *"
-              type="number"
-              value={transactionData.股数}
-              onChange={(e) => setTransactionData({...transactionData, 股数: e.target.value})}
-            />
-            <Input
-              placeholder="交易时间"
-              type="datetime-local"
-              value={transactionData.交易时间}
-              onChange={(e) => setTransactionData({...transactionData, 交易时间: e.target.value})}
-            />
-          </div>
-          <div className="text-sm text-blue-600 p-3 bg-blue-50 rounded-lg">
-            <strong>自动计算字段：</strong>距离、仓位、交易金额、最大亏损额、最大亏损率、最大盈利额、最大盈利率
-            <br />
-            <strong>必填字段：</strong>带 * 的字段为必填
-          </div>
-          <Button
-            onClick={() => onApiCall('/api/transactions', 'POST', {
-              ...transactionData,
-              项目ID: transactionData.项目ID ? Number(transactionData.项目ID) : undefined,
-              交易价: transactionData.交易价 ? Number(transactionData.交易价) : undefined,
-              止盈价: transactionData.止盈价 ? Number(transactionData.止盈价) : undefined,
-              止损价: transactionData.止损价 ? Number(transactionData.止损价) : undefined,
-              股数: transactionData.股数 ? Number(transactionData.股数) : undefined,
-              仓位: transactionData.仓位 ? Number(transactionData.仓位) : undefined,
-              交易金额: transactionData.交易金额 ? Number(transactionData.交易金额) : undefined,
-              交易时间: transactionData.交易时间 || undefined
-            })}
-            className="w-full"
-          >
-            创建交易 (POST /api/transactions)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 交易操作 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">交易操作</Label>
-          <Input
-            placeholder="交易ID"
-            value={transactionId}
-            onChange={(e) => setTransactionId(e.target.value)}
-          />
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              onClick={() => onApiCall(`/api/transactions/${transactionId}`)}
-              disabled={!transactionId}
-              size="sm"
-            >
-              获取详情
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/transactions/${transactionId}`, 'PUT', {
-                ...transactionData,
-                项目ID: transactionData.项目ID ? Number(transactionData.项目ID) : undefined,
-                交易价: transactionData.交易价 ? Number(transactionData.交易价) : undefined,
-                止盈价: transactionData.止盈价 ? Number(transactionData.止盈价) : undefined,
-                止损价: transactionData.止损价 ? Number(transactionData.止损价) : undefined,
-                股数: transactionData.股数 ? Number(transactionData.股数) : undefined,
-                仓位: transactionData.仓位 ? Number(transactionData.仓位) : undefined,
-                交易金额: transactionData.交易金额 ? Number(transactionData.交易金额) : undefined,
-                交易时间: transactionData.交易时间 || undefined
-              })}
-              disabled={!transactionId}
-              size="sm"
-            >
-              更新交易
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/transactions/${transactionId}`, 'DELETE')}
-              disabled={!transactionId}
-              variant="destructive"
-              size="sm"
-            >
-              删除交易
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// 基金管理API测试组件
-function FundApiTest({ onApiCall }: { onApiCall: (url: string, method?: string, body?: any) => void }) {
-  const [fundData, setFundData] = useState({
-    基金名称: '',
-    成本金额: '',
-    当前金额: ''
-  });
-  const [fundId, setFundId] = useState('');
-  const [navRecord, setNavRecord] = useState({
-    时间: '',
-    累计净值: ''
-  });
-  const [fundTransaction, setFundTransaction] = useState({
-    交易类型: '',
-    交易净值: '',
-    交易金额: '',
-    交易时间: ''
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>基金管理 API</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* 获取基金列表 */}
-        <div>
-          <Button
-            onClick={() => onApiCall('/api/funds')}
-            className="w-full"
-          >
-            获取所有基金 (GET /api/funds)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 创建基金 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">创建新基金</Label>
-          <div className="grid grid-cols-1 gap-2">
-            <Input
-              placeholder="基金名称"
-              value={fundData.基金名称}
-              onChange={(e) => setFundData({...fundData, 基金名称: e.target.value})}
-            />
-            <Input
-              placeholder="成本金额"
-              type="number"
-              value={fundData.成本金额}
-              onChange={(e) => setFundData({...fundData, 成本金额: e.target.value})}
-            />
-            <Input
-              placeholder="当前金额"
-              type="number"
-              value={fundData.当前金额}
-              onChange={(e) => setFundData({...fundData, 当前金额: e.target.value})}
-            />
-          </div>
-          <Button
-            onClick={() => onApiCall('/api/funds', 'POST', {
-              ...fundData,
-              成本金额: fundData.成本金额 ? Number(fundData.成本金额) : undefined,
-              当前金额: fundData.当前金额 ? Number(fundData.当前金额) : undefined
-            })}
-            className="w-full"
-          >
-            创建基金 (POST /api/funds)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 基金操作 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">基金操作</Label>
-          <Input
-            placeholder="基金ID"
-            value={fundId}
-            onChange={(e) => setFundId(e.target.value)}
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              onClick={() => onApiCall(`/api/funds/${fundId}`)}
-              disabled={!fundId}
-              size="sm"
-            >
-              获取详情
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/funds/${fundId}`, 'PUT', {
-                ...fundData,
-                成本金额: fundData.成本金额 ? Number(fundData.成本金额) : undefined,
-                当前金额: fundData.当前金额 ? Number(fundData.当前金额) : undefined
-              })}
-              disabled={!fundId}
-              size="sm"
-            >
-              更新基金
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/funds/${fundId}`, 'DELETE')}
-              disabled={!fundId}
-              variant="destructive"
-              size="sm"
-            >
-              删除基金
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/funds/${fundId}/nav-records`)}
-              disabled={!fundId}
-              size="sm"
-            >
-              净值记录
-            </Button>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* 净值记录 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">添加净值记录</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="时间"
-              type="datetime-local"
-              value={navRecord.时间}
-              onChange={(e) => setNavRecord({...navRecord, 时间: e.target.value})}
-            />
-            <Input
-              placeholder="累计净值"
-              type="number"
-              step="0.0001"
-              value={navRecord.累计净值}
-              onChange={(e) => setNavRecord({...navRecord, 累计净值: e.target.value})}
-            />
-          </div>
-          <Button
-            onClick={() => onApiCall(`/api/funds/${fundId}/nav-records`, 'POST', {
-              时间: navRecord.时间,
-              累计净值: navRecord.累计净值 ? Number(navRecord.累计净值) : undefined
-            })}
-            disabled={!fundId}
-            className="w-full"
-          >
-            添加净值记录
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 基金交易记录 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">添加基金交易记录</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="交易类型"
-              value={fundTransaction.交易类型}
-              onChange={(e) => setFundTransaction({...fundTransaction, 交易类型: e.target.value})}
-            />
-            <Input
-              placeholder="交易净值"
-              type="number"
-              step="0.0001"
-              value={fundTransaction.交易净值}
-              onChange={(e) => setFundTransaction({...fundTransaction, 交易净值: e.target.value})}
-            />
-            <Input
-              placeholder="交易金额"
-              type="number"
-              value={fundTransaction.交易金额}
-              onChange={(e) => setFundTransaction({...fundTransaction, 交易金额: e.target.value})}
-            />
-            <Input
-              placeholder="交易时间"
-              type="datetime-local"
-              value={fundTransaction.交易时间}
-              onChange={(e) => setFundTransaction({...fundTransaction, 交易时间: e.target.value})}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              onClick={() => onApiCall(`/api/funds/${fundId}/transactions`, 'POST', {
-                交易类型: fundTransaction.交易类型,
-                交易净值: fundTransaction.交易净值 ? Number(fundTransaction.交易净值) : undefined,
-                交易金额: fundTransaction.交易金额 ? Number(fundTransaction.交易金额) : undefined,
-                交易时间: fundTransaction.交易时间
-              })}
-              disabled={!fundId}
-              size="sm"
-            >
-              添加交易记录
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/funds/${fundId}/transactions`)}
-              disabled={!fundId}
-              size="sm"
-            >
-              查看交易记录
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// 统计API测试组件
-function StatisticsApiTest({ onApiCall }: { onApiCall: (url: string, method?: string, body?: any) => void }) {
-  const [queryParams, setQueryParams] = useState({
-    年月: '',
-    类型: ''
-  });
-  const [statsData, setStatsData] = useState({
-    年月: '',
-    类型: '',
-    自主盈亏金额: '',
-    自主盈亏率: '',
-    基金盈亏金额: '',
-    基金盈亏率: '',
-    总盈亏金额: '',
-    总盈亏率: ''
-  });
-  const [statsId, setStatsId] = useState('');
-  const [calculateData, setCalculateData] = useState({
-    年月: '',
-    类型: '月度'
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>统计 API</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* 查询统计 */}
-        <div className="space-y-2">
-          <Label className="font-semibold">查询统计数据</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="年月 (如: 2024-01)"
-              value={queryParams.年月}
-              onChange={(e) => setQueryParams({...queryParams, 年月: e.target.value})}
-            />
-            <Input
-              placeholder="类型"
-              value={queryParams.类型}
-              onChange={(e) => setQueryParams({...queryParams, 类型: e.target.value})}
-            />
-          </div>
-          <Button
-            onClick={() => {
-              const params = new URLSearchParams();
-              if (queryParams.年月) params.append('年月', queryParams.年月);
-              if (queryParams.类型) params.append('类型', queryParams.类型);
-              onApiCall(`/api/statistics${params.toString() ? '?' + params.toString() : ''}`);
-            }}
-            className="w-full"
-          >
-            查询统计数据 (GET /api/statistics)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 计算统计 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">计算统计数据</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="年月 (如: 2024-01)"
-              value={calculateData.年月}
-              onChange={(e) => setCalculateData({...calculateData, 年月: e.target.value})}
-            />
-            <Input
-              placeholder="类型"
-              value={calculateData.类型}
-              onChange={(e) => setCalculateData({...calculateData, 类型: e.target.value})}
-            />
-          </div>
-          <Button
-            onClick={() => onApiCall('/api/statistics', 'PUT', calculateData)}
-            className="w-full"
-          >
-            计算统计数据 (PUT /api/statistics)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 创建统计记录 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">手动创建统计记录</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="年月"
-              value={statsData.年月}
-              onChange={(e) => setStatsData({...statsData, 年月: e.target.value})}
-            />
-            <Input
-              placeholder="类型"
-              value={statsData.类型}
-              onChange={(e) => setStatsData({...statsData, 类型: e.target.value})}
-            />
-            <Input
-              placeholder="自主盈亏金额"
-              type="number"
-              value={statsData.自主盈亏金额}
-              onChange={(e) => setStatsData({...statsData, 自主盈亏金额: e.target.value})}
-            />
-            <Input
-              placeholder="自主盈亏率"
-              type="number"
-              value={statsData.自主盈亏率}
-              onChange={(e) => setStatsData({...statsData, 自主盈亏率: e.target.value})}
-            />
-            <Input
-              placeholder="基金盈亏金额"
-              type="number"
-              value={statsData.基金盈亏金额}
-              onChange={(e) => setStatsData({...statsData, 基金盈亏金额: e.target.value})}
-            />
-            <Input
-              placeholder="基金盈亏率"
-              type="number"
-              value={statsData.基金盈亏率}
-              onChange={(e) => setStatsData({...statsData, 基金盈亏率: e.target.value})}
-            />
-            <Input
-              placeholder="总盈亏金额"
-              type="number"
-              value={statsData.总盈亏金额}
-              onChange={(e) => setStatsData({...statsData, 总盈亏金额: e.target.value})}
-            />
-            <Input
-              placeholder="总盈亏率"
-              type="number"
-              value={statsData.总盈亏率}
-              onChange={(e) => setStatsData({...statsData, 总盈亏率: e.target.value})}
-            />
-          </div>
-          <Button
-            onClick={() => onApiCall('/api/statistics', 'POST', {
-              ...statsData,
-              自主盈亏金额: statsData.自主盈亏金额 ? Number(statsData.自主盈亏金额) : undefined,
-              自主盈亏率: statsData.自主盈亏率 ? Number(statsData.自主盈亏率) : undefined,
-              基金盈亏金额: statsData.基金盈亏金额 ? Number(statsData.基金盈亏金额) : undefined,
-              基金盈亏率: statsData.基金盈亏率 ? Number(statsData.基金盈亏率) : undefined,
-              总盈亏金额: statsData.总盈亏金额 ? Number(statsData.总盈亏金额) : undefined,
-              总盈亏率: statsData.总盈亏率 ? Number(statsData.总盈亏率) : undefined
-            })}
-            className="w-full"
-          >
-            创建统计记录 (POST /api/statistics)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 统计记录操作 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">统计记录操作</Label>
-          <Input
-            placeholder="统计记录ID"
-            value={statsId}
-            onChange={(e) => setStatsId(e.target.value)}
-          />
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              onClick={() => onApiCall(`/api/statistics/${statsId}`)}
-              disabled={!statsId}
-              size="sm"
-            >
-              获取详情
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/statistics/${statsId}`, 'PUT', {
-                ...statsData,
-                自主盈亏金额: statsData.自主盈亏金额 ? Number(statsData.自主盈亏金额) : undefined,
-                自主盈亏率: statsData.自主盈亏率 ? Number(statsData.自主盈亏率) : undefined,
-                基金盈亏金额: statsData.基金盈亏金额 ? Number(statsData.基金盈亏金额) : undefined,
-                基金盈亏率: statsData.基金盈亏率 ? Number(statsData.基金盈亏率) : undefined,
-                总盈亏金额: statsData.总盈亏金额 ? Number(statsData.总盈亏金额) : undefined,
-                总盈亏率: statsData.总盈亏率 ? Number(statsData.总盈亏率) : undefined
-              })}
-              disabled={!statsId}
-              size="sm"
-            >
-              更新记录
-            </Button>
-            <Button
-              onClick={() => onApiCall(`/api/statistics/${statsId}`, 'DELETE')}
-              disabled={!statsId}
-              variant="destructive"
-              size="sm"
-            >
-              删除记录
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// 总览API测试组件
-function OverviewApiTest({ onApiCall }: { onApiCall: (url: string, method?: string, body?: any) => void }) {
-  const [overviewData, setOverviewData] = useState({
-    自主总金额: '',
-    自主成本金额: '',
-    自主持仓金额: '',
-    自主盈亏金额: '',
-    自主盈亏率: '',
-    自主仓位: '',
-    基金总金额: '',
-    基金盈亏金额: '',
-    基金盈亏率: '',
-    总投资金额: '',
-    总盈亏金额: '',
-    总盈亏率: ''
-  });
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>总览 API</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* 获取总览 */}
-        <div>
-          <Button
-            onClick={() => onApiCall('/api/overview')}
-            className="w-full"
-          >
-            获取总览数据 (GET /api/overview)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 计算总览 */}
-        <div>
-          <Button
-            onClick={() => onApiCall('/api/overview', 'PUT')}
-            className="w-full"
-          >
-            重新计算总览数据 (PUT /api/overview)
-          </Button>
-        </div>
-
-        <Separator />
-
-        {/* 手动创建总览 */}
-        <div className="space-y-3">
-          <Label className="font-semibold">手动创建总览数据</Label>
-          <div className="grid grid-cols-2 gap-2">
-            <Input
-              placeholder="自主总金额"
-              type="number"
-              value={overviewData.自主总金额}
-              onChange={(e) => setOverviewData({...overviewData, 自主总金额: e.target.value})}
-            />
-            <Input
-              placeholder="自主成本金额"
-              type="number"
-              value={overviewData.自主成本金额}
-              onChange={(e) => setOverviewData({...overviewData, 自主成本金额: e.target.value})}
-            />
-            <Input
-              placeholder="自主持仓金额"
-              type="number"
-              value={overviewData.自主持仓金额}
-              onChange={(e) => setOverviewData({...overviewData, 自主持仓金额: e.target.value})}
-            />
-            <Input
-              placeholder="自主盈亏金额"
-              type="number"
-              value={overviewData.自主盈亏金额}
-              onChange={(e) => setOverviewData({...overviewData, 自主盈亏金额: e.target.value})}
-            />
-            <Input
-              placeholder="自主盈亏率"
-              type="number"
-              value={overviewData.自主盈亏率}
-              onChange={(e) => setOverviewData({...overviewData, 自主盈亏率: e.target.value})}
-            />
-            <Input
-              placeholder="自主仓位"
-              type="number"
-              value={overviewData.自主仓位}
-              onChange={(e) => setOverviewData({...overviewData, 自主仓位: e.target.value})}
-            />
-            <Input
-              placeholder="基金总金额"
-              type="number"
-              value={overviewData.基金总金额}
-              onChange={(e) => setOverviewData({...overviewData, 基金总金额: e.target.value})}
-            />
-            <Input
-              placeholder="基金盈亏金额"
-              type="number"
-              value={overviewData.基金盈亏金额}
-              onChange={(e) => setOverviewData({...overviewData, 基金盈亏金额: e.target.value})}
-            />
-            <Input
-              placeholder="基金盈亏率"
-              type="number"
-              value={overviewData.基金盈亏率}
-              onChange={(e) => setOverviewData({...overviewData, 基金盈亏率: e.target.value})}
-            />
-            <Input
-              placeholder="总投资金额"
-              type="number"
-              value={overviewData.总投资金额}
-              onChange={(e) => setOverviewData({...overviewData, 总投资金额: e.target.value})}
-            />
-            <Input
-              placeholder="总盈亏金额"
-              type="number"
-              value={overviewData.总盈亏金额}
-              onChange={(e) => setOverviewData({...overviewData, 总盈亏金额: e.target.value})}
-            />
-            <Input
-              placeholder="总盈亏率"
-              type="number"
-              value={overviewData.总盈亏率}
-              onChange={(e) => setOverviewData({...overviewData, 总盈亏率: e.target.value})}
-            />
-          </div>
-          <Button
-            onClick={() => onApiCall('/api/overview', 'POST', {
-              自主总金额: overviewData.自主总金额 ? Number(overviewData.自主总金额) : undefined,
-              自主成本金额: overviewData.自主成本金额 ? Number(overviewData.自主成本金额) : undefined,
-              自主持仓金额: overviewData.自主持仓金额 ? Number(overviewData.自主持仓金额) : undefined,
-              自主盈亏金额: overviewData.自主盈亏金额 ? Number(overviewData.自主盈亏金额) : undefined,
-              自主盈亏率: overviewData.自主盈亏率 ? Number(overviewData.自主盈亏率) : undefined,
-              自主仓位: overviewData.自主仓位 ? Number(overviewData.自主仓位) : undefined,
-              基金总金额: overviewData.基金总金额 ? Number(overviewData.基金总金额) : undefined,
-              基金盈亏金额: overviewData.基金盈亏金额 ? Number(overviewData.基金盈亏金额) : undefined,
-              基金盈亏率: overviewData.基金盈亏率 ? Number(overviewData.基金盈亏率) : undefined,
-              总投资金额: overviewData.总投资金额 ? Number(overviewData.总投资金额) : undefined,
-              总盈亏金额: overviewData.总盈亏金额 ? Number(overviewData.总盈亏金额) : undefined,
-              总盈亏率: overviewData.总盈亏率 ? Number(overviewData.总盈亏率) : undefined
-            })}
-            className="w-full"
-          >
-            创建总览数据 (POST /api/overview)
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

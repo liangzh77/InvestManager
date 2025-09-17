@@ -1,172 +1,173 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/db';
-import { Overview } from '@/lib/types';
 
+// GET - 获取总览统计
 export async function GET() {
   try {
     const db = getDatabase();
 
-    // 获取最新的总览数据
-    const overview = db.prepare('SELECT * FROM overview ORDER BY 更新时间 DESC LIMIT 1').get() as Overview;
+    // 首先尝试从overview表获取已保存的总金额
+    const existingOverview = db.prepare('SELECT 总金额 FROM overview WHERE id = 1').get() as any;
+    const 保存的总金额 = existingOverview?.总金额 || 0;
 
-    if (!overview) {
-      // 如果没有总览数据，创建一个默认的
-      return NextResponse.json({
-        success: true,
-        data: {
-          自主总金额: 0,
-          自主成本金额: 0,
-          自主持仓金额: 0,
-          自主盈亏金额: 0,
-          自主盈亏率: 0,
-          自主仓位: 0,
-          基金总金额: 0,
-          基金盈亏金额: 0,
-          基金盈亏率: 0,
-          总投资金额: 0,
-          总盈亏金额: 0,
-          总盈亏率: 0,
-          更新时间: new Date().toISOString()
-        }
-      });
+    // 计算所有项目的总体统计
+    const projectStats = db.prepare(`
+      SELECT
+        COALESCE(SUM(成本金额), 0) as 总成本金额,
+        COALESCE(SUM(当前金额), 0) as 总当前金额,
+        COALESCE(SUM(盈亏金额), 0) as 总盈亏金额,
+        COUNT(*) as 项目总数,
+        COUNT(CASE WHEN 状态 = '进行' THEN 1 END) as 进行中项目,
+        COUNT(CASE WHEN 状态 = '完成' THEN 1 END) as 已完成项目
+      FROM projects
+    `).get() as any;
+
+    // 计算总盈亏率（基于总投资金额）
+    const 总盈亏率 = 保存的总金额 > 0
+      ? (projectStats.总盈亏金额 / 保存的总金额) * 100
+      : 0;
+
+    // 使用保存的总金额计算总仓位
+    const 总仓位 = 保存的总金额 > 0
+      ? (projectStats.总当前金额 / 保存的总金额) * 100
+      : 0;
+
+    // 获取最近的交易活动
+    const recentTransactions = db.prepare(`
+      SELECT COUNT(*) as 交易总数,
+        COUNT(CASE WHEN 状态 = '计划' THEN 1 END) as 计划中交易,
+        COUNT(CASE WHEN 状态 = '完成' THEN 1 END) as 已完成交易
+      FROM transactions
+    `).get() as any;
+
+    // 构建总览数据
+    const overview = {
+      总金额: 保存的总金额,  // 使用保存的总金额而不是总当前金额
+      成本金额: projectStats.总成本金额,
+      持仓金额: projectStats.总当前金额,
+      盈亏金额: projectStats.总盈亏金额,
+      盈亏率: 总盈亏率,
+      仓位: 总仓位,
+      更新时间: new Date().toISOString(),
+
+      // 额外统计信息
+      项目统计: {
+        项目总数: projectStats.项目总数,
+        进行中项目: projectStats.进行中项目,
+        已完成项目: projectStats.已完成项目
+      },
+      交易统计: {
+        交易总数: recentTransactions.交易总数,
+        计划中交易: recentTransactions.计划中交易,
+        已完成交易: recentTransactions.已完成交易
+      }
+    };
+
+    // 保存到overview表（保持总金额不变）
+    db.prepare(`
+      INSERT OR REPLACE INTO overview (
+        id, 总金额, 成本金额, 持仓金额, 盈亏金额, 盈亏率, 仓位, 更新时间
+      ) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(
+      overview.总金额,
+      overview.成本金额,
+      overview.持仓金额,
+      overview.盈亏金额,
+      overview.盈亏率,
+      overview.仓位
+    );
+
+    return NextResponse.json({
+      success: true,
+      data: overview
+    });
+  } catch (error) {
+    console.error('获取总览统计错误:', error);
+    return NextResponse.json(
+      { success: false, error: '获取总览统计失败' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST - 手动更新总览统计（可选）
+export async function POST() {
+  try {
+    // 直接调用GET方法重新计算
+    return await GET();
+  } catch (error) {
+    console.error('更新总览统计错误:', error);
+    return NextResponse.json(
+      { success: false, error: '更新总览统计失败' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT - 更新总金额
+export async function PUT(request: NextRequest) {
+  try {
+    const { 总金额 } = await request.json();
+
+    if (!总金额 || isNaN(总金额) || 总金额 <= 0) {
+      return NextResponse.json(
+        { success: false, error: '总金额必须是有效的正数' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({ success: true, data: overview });
-  } catch (error) {
-    console.error('获取总览数据失败:', error);
-    return NextResponse.json(
-      { success: false, error: '获取总览数据失败' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const {
-      自主总金额,
-      自主成本金额,
-      自主持仓金额,
-      自主盈亏金额,
-      自主盈亏率,
-      自主仓位,
-      基金总金额,
-      基金盈亏金额,
-      基金盈亏率,
-      总投资金额,
-      总盈亏金额,
-      总盈亏率
-    } = body;
-
     const db = getDatabase();
 
-    const stmt = db.prepare(`
-      INSERT INTO overview (
-        自主总金额, 自主成本金额, 自主持仓金额, 自主盈亏金额, 自主盈亏率, 自主仓位,
-        基金总金额, 基金盈亏金额, 基金盈亏率, 总投资金额, 总盈亏金额, 总盈亏率
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
-      自主总金额,
-      自主成本金额,
-      自主持仓金额,
-      自主盈亏金额,
-      自主盈亏率,
-      自主仓位,
-      基金总金额,
-      基金盈亏金额,
-      基金盈亏率,
-      总投资金额,
-      总盈亏金额,
-      总盈亏率
-    );
-
-    const newOverview = db.prepare('SELECT * FROM overview WHERE id = ?').get(result.lastInsertRowid) as Overview;
-
-    return NextResponse.json({ success: true, data: newOverview });
-  } catch (error) {
-    console.error('创建总览数据失败:', error);
-    return NextResponse.json(
-      { success: false, error: '创建总览数据失败' },
-      { status: 500 }
-    );
-  }
-}
-
-// 计算总览数据的端点
-export async function PUT() {
-  try {
-    const db = getDatabase();
-
-    // 计算自主投资数据
-    const projectsData = db.prepare(`
+    // 获取当前项目统计
+    const projectStats = db.prepare(`
       SELECT
-        SUM(COALESCE(p.成本金额, 0)) as 自主成本金额,
-        SUM(COALESCE(p.当前金额, 0)) as 自主持仓金额
-      FROM projects p
-      WHERE p.完成时间 IS NULL
+        COALESCE(SUM(成本金额), 0) as 总成本金额,
+        COALESCE(SUM(当前金额), 0) as 总当前金额,
+        COALESCE(SUM(盈亏金额), 0) as 总盈亏金额,
+        COUNT(*) as 项目总数
+      FROM projects
     `).get() as any;
 
-    // 计算基金数据
-    const fundsData = db.prepare(`
-      SELECT
-        SUM(成本金额) as 基金成本金额,
-        SUM(当前金额) as 基金当前金额
-      FROM funds
-    `).get() as any;
+    // 基于新的总金额重新计算相关指标
+    const 新总仓位 = 总金额 > 0 ? (projectStats.总当前金额 / 总金额) * 100 : 0;
+    const 新盈亏率 = 总金额 > 0
+      ? (projectStats.总盈亏金额 / 总金额) * 100
+      : 0;
 
-    const 自主成本金额 = projectsData?.自主成本金额 || 0;
-    const 自主持仓金额 = projectsData?.自主持仓金额 || 0;
-    const 自主盈亏金额 = 自主持仓金额 - 自主成本金额;
-    const 自主盈亏率 = 自主成本金额 > 0 ? (自主盈亏金额 / 自主成本金额) * 100 : 0;
-    const 自主总金额 = 自主成本金额; // 根据文档，自主总金额应该是投入的总成本
-    const 自主仓位 = 100; // 假设自主投资的仓位为100%
-
-    const 基金成本金额 = fundsData?.基金成本金额 || 0;
-    const 基金当前金额 = fundsData?.基金当前金额 || 0;
-    const 基金盈亏金额 = 基金当前金额 - 基金成本金额;
-    const 基金盈亏率 = 基金成本金额 > 0 ? (基金盈亏金额 / 基金成本金额) * 100 : 0;
-    const 基金总金额 = 基金成本金额;
-
-    const 总投资金额 = 自主总金额 + 基金总金额;
-    const 总盈亏金额 = 自主盈亏金额 + 基金盈亏金额;
-    const 总盈亏率 = 总投资金额 > 0 ? (总盈亏金额 / 总投资金额) * 100 : 0;
-
-    // 删除旧的总览数据
-    db.prepare('DELETE FROM overview').run();
-
-    // 插入新计算的总览数据
-    const stmt = db.prepare(`
-      INSERT INTO overview (
-        自主总金额, 自主成本金额, 自主持仓金额, 自主盈亏金额, 自主盈亏率, 自主仓位,
-        基金总金额, 基金盈亏金额, 基金盈亏率, 总投资金额, 总盈亏金额, 总盈亏率
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(
-      自主总金额,
-      自主成本金额,
-      自主持仓金额,
-      自主盈亏金额,
-      自主盈亏率,
-      自主仓位,
-      基金总金额,
-      基金盈亏金额,
-      基金盈亏率,
-      总投资金额,
-      总盈亏金额,
-      总盈亏率
+    // 更新总览表
+    const updateResult = db.prepare(`
+      INSERT OR REPLACE INTO overview (
+        id, 总金额, 成本金额, 持仓金额, 盈亏金额, 盈亏率, 仓位, 更新时间
+      ) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(
+      总金额,
+      projectStats.总成本金额,
+      projectStats.总当前金额,
+      projectStats.总盈亏金额,
+      新盈亏率,
+      新总仓位
     );
 
-    const newOverview = db.prepare('SELECT * FROM overview WHERE id = ?').get(result.lastInsertRowid) as Overview;
+    // 获取更新后的数据
+    const updatedOverview = db.prepare('SELECT * FROM overview WHERE id = 1').get();
 
-    return NextResponse.json({ success: true, data: newOverview });
+    return NextResponse.json({
+      success: true,
+      message: '总金额更新成功',
+      data: {
+        ...updatedOverview,
+        项目统计: {
+          项目总数: projectStats.项目总数,
+          总成本金额: projectStats.总成本金额,
+          总当前金额: projectStats.总当前金额,
+          总盈亏金额: projectStats.总盈亏金额
+        }
+      }
+    });
   } catch (error) {
-    console.error('计算总览数据失败:', error);
+    console.error('更新总金额错误:', error);
     return NextResponse.json(
-      { success: false, error: '计算总览数据失败' },
+      { success: false, error: '更新总金额失败' },
       { status: 500 }
     );
   }

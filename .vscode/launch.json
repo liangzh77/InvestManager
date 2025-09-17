@@ -19,7 +19,7 @@
       "type": "node",
       "request": "launch",
       "program": "${workspaceFolder}/node_modules/next/dist/bin/next",
-      "args": ["dev", "--turbopack"],
+      "args": ["dev"],
       "env": {
         "NODE_OPTIONS": "--inspect"
       },
