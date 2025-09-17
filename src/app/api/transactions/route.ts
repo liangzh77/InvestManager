@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     const db = getDatabase();
 
-    // 如果提供了项目ID，获取项目名称
+    // 如果提供了项目ID，验证项目是否存在并获取项目名称
     let 项目名称 = data.项目名称;
     if (data.项目ID) {
       const project = db.prepare('SELECT 项目名称, 当前价 FROM projects WHERE id = ?').get(data.项目ID) as any;
@@ -58,6 +58,11 @@ export async function POST(request: NextRequest) {
         if (data.警告方向 && data.交易价) {
           data.距离 = calculateTransactionDistance(data, project.当前价);
         }
+      } else {
+        return NextResponse.json(
+          { success: false, error: '指定的项目不存在' },
+          { status: 400 }
+        );
       }
     }
 

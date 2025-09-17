@@ -157,14 +157,19 @@ export async function DELETE(
       );
     }
 
-    // 删除相关的交易记录
-    db.prepare('DELETE FROM transactions WHERE 项目ID = ?').run(id);
+    // 使用事务确保数据一致性
+    const deleteTransaction = db.transaction(() => {
+      // 删除相关的交易记录
+      db.prepare('DELETE FROM transactions WHERE 项目ID = ?').run(id);
 
-    // 删除相关的统计记录
-    db.prepare('DELETE FROM statistics WHERE 项目ID = ?').run(id);
+      // 删除相关的统计记录
+      db.prepare('DELETE FROM statistics WHERE 项目ID = ?').run(id);
 
-    // 删除项目
-    db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+      // 删除项目
+      db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+    });
+
+    deleteTransaction();
 
     return NextResponse.json({
       success: true,
