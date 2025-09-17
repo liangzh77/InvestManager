@@ -4,7 +4,13 @@
       "Bash(npx create-next-app:*)",
       "Read(//c/liangz77/python_projects/github_projects/**)",
       "Bash(npm install:*)",
-      "Bash(npx shadcn@latest init:*)"
+      "Bash(npx shadcn@latest init:*)",
+      "Bash(tree:*)",
+      "Bash(npm run dev:*)",
+      "Bash(node:*)",
+      "Bash(fuser:*)",
+      "WebFetch(domain:localhost)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []

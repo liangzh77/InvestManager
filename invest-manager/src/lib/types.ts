@@ -2,6 +2,7 @@ export interface Project {
   id?: number;
   项目名称: string;
   项目代号?: string;
+  交易类型?: '做多' | '做空';
   成本价?: number;
   当前价?: number;
   股数?: number;
@@ -75,12 +76,13 @@ export interface Statistics {
 
 export interface Overview {
   id?: number;
-  自主投资金额?: number;
+  自主总金额?: number;
+  自主成本金额?: number;
   自主持仓金额?: number;
   自主盈亏金额?: number;
   自主盈亏率?: number;
   自主仓位?: number;
-  基金投资金额?: number;
+  基金总金额?: number;
   基金盈亏金额?: number;
   基金盈亏率?: number;
   总投资金额?: number;

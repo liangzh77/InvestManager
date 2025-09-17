@@ -21,12 +21,27 @@ export function getDatabase(): Database.Database {
 }
 
 function initializeDatabase(database: Database.Database) {
+  // 删除现有表并重新创建（仅用于开发阶段）
+  try {
+    database.exec('DROP TABLE IF EXISTS transactions');
+    database.exec('DROP TABLE IF EXISTS projects');
+    database.exec('DROP TABLE IF EXISTS fund_nav_records');
+    database.exec('DROP TABLE IF EXISTS fund_transactions');
+    database.exec('DROP TABLE IF EXISTS funds');
+    database.exec('DROP TABLE IF EXISTS statistics');
+    database.exec('DROP TABLE IF EXISTS overview');
+    console.log('所有表已删除，准备重新创建');
+  } catch (error) {
+    console.log('清理表时出现错误:', error);
+  }
+
   // 创建项目表
   database.exec(`
     CREATE TABLE IF NOT EXISTS projects (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       项目名称 TEXT NOT NULL,
       项目代号 TEXT,
+      交易类型 TEXT CHECK(交易类型 IS NULL OR 交易类型 IN ('做多', '做空')),
       成本价 REAL,
       当前价 REAL,
       股数 INTEGER,
@@ -50,7 +65,7 @@ function initializeDatabase(database: Database.Database) {
       状态 TEXT CHECK(状态 IN ('计划', '完成')),
       交易名称 TEXT,
       交易类型 TEXT CHECK(交易类型 IN ('做多', '做空', '多头平仓', '空头平仓')),
-      警告方向 TEXT CHECK(警告方向 IN ('向上', '向下')),
+      警告方向 TEXT CHECK(警告方向 IS NULL OR 警告方向 = '' OR 警告方向 IN ('向上', '向下')),
       距离 REAL,
       交易价 REAL,
       止盈价 REAL,
@@ -121,12 +136,13 @@ function initializeDatabase(database: Database.Database) {
   database.exec(`
     CREATE TABLE IF NOT EXISTS overview (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      自主投资金额 REAL,
+      自主总金额 REAL,
+      自主成本金额 REAL,
       自主持仓金额 REAL,
       自主盈亏金额 REAL,
       自主盈亏率 REAL,
       自主仓位 REAL,
-      基金投资金额 REAL,
+      基金总金额 REAL,
       基金盈亏金额 REAL,
       基金盈亏率 REAL,
       总投资金额 REAL,
