@@ -12,6 +12,7 @@ interface InlineEditNumberProps {
   min?: number;
   max?: number;
   disabled?: boolean;
+  placeholder?: string;
 }
 
 export function InlineEditNumber({
@@ -23,7 +24,8 @@ export function InlineEditNumber({
   suffix = '',
   min,
   max,
-  disabled = false
+  disabled = false,
+  placeholder
 }: InlineEditNumberProps) {
   const [editing, setEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value.toString());
@@ -93,6 +95,7 @@ export function InlineEditNumber({
         min={min}
         max={max}
         step={precision > 0 ? Math.pow(10, -precision) : 1}
+        placeholder={placeholder}
       />
     );
   }
@@ -103,7 +106,7 @@ export function InlineEditNumber({
       className={`${className} cursor-pointer hover:bg-gray-100 px-2 py-1 rounded border-2 border-transparent hover:border-gray-300 transition-colors`}
       title="点击编辑"
     >
-      {formatDisplayValue(value)}{suffix}
+      {value === 0 && placeholder ? placeholder : `${formatDisplayValue(value)}${suffix}`}
     </span>
   );
 }

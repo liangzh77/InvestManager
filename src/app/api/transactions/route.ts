@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
     const stmt = db.prepare(`
       INSERT INTO transactions (
         项目ID, 项目名称, 状态, 交易名称, 交易类型, 警告方向, 距离,
-        交易价, 股数, 仓位, 交易金额, 创建时间, 交易时间
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+        交易价, 股数, 仓位, 交易金额, 创建时间, 交易时间, 排序顺序
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
     `);
 
     const result = stmt.run(
@@ -85,7 +85,8 @@ export async function POST(request: NextRequest) {
       data.股数 || null,
       data.仓位 || null,
       data.交易金额 || null,
-      data.交易时间 || null
+      data.交易时间 || null,
+      data.排序顺序 || 0
     );
 
     // 如果交易状态为'完成'，更新相关项目的统计数据
