@@ -167,6 +167,17 @@ export default function ProjectsPage() {
   // 刷新并联动重算：计划交易仓位 + 项目仓位/盈亏率
   const refreshDataAndRecalculate = async () => {
     try {
+      // 0) 先更新所有进行中项目的股价
+      try {
+        const priceUpdateRes = await fetch('/api/update-prices', { method: 'POST' });
+        const priceUpdateJson = await priceUpdateRes.json();
+        if (priceUpdateJson.success) {
+          console.log('股价更新结果:', priceUpdateJson.data);
+        }
+      } catch (error) {
+        console.error('更新股价失败:', error);
+      }
+
       // 1) 获取总金额
       const overviewRes = await fetch('/api/overview');
       const overviewJson = await overviewRes.json();

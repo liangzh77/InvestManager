@@ -308,6 +308,17 @@ export default function PlansPage() {
 
   // 刷新数据并重新排序
   const refreshData = async () => {
+    // 0. 先更新所有进行中项目的股价
+    try {
+      const priceUpdateRes = await fetch('/api/update-prices', { method: 'POST' });
+      const priceUpdateJson = await priceUpdateRes.json();
+      if (priceUpdateJson.success) {
+        console.log('股价更新结果:', priceUpdateJson.data);
+      }
+    } catch (error) {
+      console.error('更新股价失败:', error);
+    }
+
     // 1. 获取总金额
     await fetchTotalAmount();
 
