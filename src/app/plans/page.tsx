@@ -464,8 +464,13 @@ export default function PlansPage() {
                 </tr>
               </thead>
               <tbody>
-                {planTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="border-b hover:bg-gray-50">
+                {planTransactions.map((transaction, index) => {
+                  // 检查当前行和下一行是否属于不同项目
+                  const nextTransaction = planTransactions[index + 1];
+                  const isDifferentProject = nextTransaction && nextTransaction.项目ID !== transaction.项目ID;
+
+                  return (
+                  <tr key={transaction.id} className={`${isDifferentProject ? 'border-b-2 border-blue-400' : 'border-b border-gray-200'} hover:bg-gray-50`}>
                     <td className="py-3 px-4 font-medium text-blue-600">
                       {getProjectName(transaction.项目ID)}
                     </td>
@@ -587,7 +592,8 @@ export default function PlansPage() {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
