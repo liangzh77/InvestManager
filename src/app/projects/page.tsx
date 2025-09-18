@@ -163,6 +163,112 @@ export default function ProjectsPage() {
     };
   }, []);
 
+  // 刷新并联动重算：计划交易仓位 + 项目仓位/盈亏率
+  const refreshDataAndRecalculate = async () => {
+    try {
+      // 1) 获取总金额
+      const overviewRes = await fetch('/api/overview');
+      const overviewJson = await overviewRes.json();
+      const total = overviewJson?.data?.总金额 && overviewJson.data.总金额 > 0 ? overviewJson.data.总金额 : 100000;
+      setTotalAmount(total);
+
+      // 2) 获取项目与交易
+      const projectsRes = await fetch('/api/projects');
+      const projectsJson = await projectsRes.json();
+      let fetchedProjects: Project[] = [];
+      if (projectsJson.success) {
+        fetchedProjects = projectsJson.data.sort((a: Project, b: Project) => (a.排序顺序 || 0) - (b.排序顺序 || 0));
+        setProjects(fetchedProjects);
+      }
+
+      const txRes = await fetch('/api/transactions');
+      const txJson = await txRes.json();
+      const allTx: Transaction[] = txJson.success ? txJson.data : [];
+      const txByProject: { [projectId: number]: Transaction[] } = {};
+      allTx.forEach(t => {
+        const pid = t.项目ID as number;
+        if (!txByProject[pid]) txByProject[pid] = [];
+        txByProject[pid].push(t);
+      });
+      setTransactions(txByProject);
+
+      // 3) 重算所有交易（含"计划"和"完成"）的 交易金额 与 仓位（基于总金额）
+      const txUpdates: Promise<any>[] = [];
+      const updatedTxByProject: { [projectId: number]: Transaction[] } = {};
+      
+      allTx.forEach(t => {
+        const price = t.交易价 || 0;
+        const amount = (t.交易金额 && t.交易金额 > 0)
+          ? t.交易金额
+          : ((t.股数 || 0) * (price || 0));
+        const position = total > 0 ? (amount / total) * 100 : 0;
+        
+        // 更新交易数据
+        const updatedTx = {
+          ...t,
+          交易金额: amount,
+          仓位: position,
+        };
+        
+        // 按项目分组更新后的交易数据
+        const pid = t.项目ID as number;
+        if (!updatedTxByProject[pid]) updatedTxByProject[pid] = [];
+        updatedTxByProject[pid].push(updatedTx);
+        
+        txUpdates.push(
+          fetch(`/api/transactions/${t.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              交易金额: amount,
+              仓位: position,
+            }),
+          })
+        );
+      });
+      await Promise.allSettled(txUpdates);
+      
+      // 更新本地交易状态
+      setTransactions(updatedTxByProject);
+
+      // 4) 按项目重算 仓位/项目盈亏率/总盈亏率 并回写（使用更新后的交易数据）
+      const projectUpdates: Promise<any>[] = [];
+      fetchedProjects.forEach(p => {
+        const list = updatedTxByProject[p.id] || [];
+        const metrics = calculateProjectMetrics(list, p.当前价 || 0, total);
+        projectUpdates.push(
+          fetch(`/api/projects/${p.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              仓位: metrics.仓位,
+              项目盈亏率: metrics.项目盈亏率,
+              总盈亏率: metrics.总盈亏率,
+            }),
+          })
+        );
+      });
+      await Promise.allSettled(projectUpdates);
+
+      // 5) 同步本地状态中的项目派生字段
+      setProjects(prev => prev.map(p => {
+        const list = updatedTxByProject[p.id] || [];
+        const metrics = calculateProjectMetrics(list, p.当前价 || 0, total);
+        return {
+          ...p,
+          仓位: metrics.仓位,
+          项目盈亏率: metrics.项目盈亏率,
+          总盈亏率: metrics.总盈亏率,
+        };
+      }));
+    } catch (err) {
+      console.error('刷新并联动重算失败:', err);
+      // 兜底：保留原有简易刷新
+      fetchTotalAmount();
+      fetchProjects();
+    }
+  };
+
   // 更新项目信息
   const updateProject = async (projectId: number, field: string, value: any) => {
     try {
@@ -857,6 +963,7 @@ export default function ProjectsPage() {
         ref={setNodeRef}
         style={style}
         className={`${isDragging ? 'opacity-50' : ''} bg-white rounded-lg shadow-md overflow-hidden`}
+        id={`project-${project.id}`}
       >
         {/* 项目信息表格 */}
         <div className="p-6 bg-gray-50 border-b">
@@ -1049,6 +1156,53 @@ export default function ProjectsPage() {
     );
   };
 
+  // 左侧导航中的可拖拽项目条目
+  const DraggableSidebarItem = ({ project }: { project: Project }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: project.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    } as React.CSSProperties;
+
+    const scrollToProject = () => {
+      const el = document.getElementById(`project-${project.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`flex items-center justify-between px-3 py-2 rounded cursor-pointer select-none ${isDragging ? 'opacity-50' : 'hover:bg-gray-100'}`}
+        onClick={scrollToProject}
+        title={project.项目名称}
+      >
+        <span className="truncate text-sm">{project.项目名称}</span>
+        <button
+          {...attributes}
+          {...listeners}
+          className="ml-2 text-gray-400 hover:text-gray-600 p-1"
+          onClick={(e) => e.stopPropagation()}
+          title="拖拽排序"
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 6h18M3 12h18M3 18h18"/>
+          </svg>
+        </button>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -1060,7 +1214,7 @@ export default function ProjectsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <div className="mx-auto p-6 max-w-[1700px]">
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold">项目管理</h1>
@@ -1074,10 +1228,7 @@ export default function ProjectsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              fetchTotalAmount();
-              fetchProjects();
-            }}
+            onClick={refreshDataAndRecalculate}
             className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
             title="刷新数据和总金额"
           >
@@ -1092,25 +1243,53 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      <DndContext
-        sensors={sensors}
-        collisionDetection={closestCenter}
-        onDragEnd={handleProjectDragEnd}
-      >
-        <SortableContext
-          items={projects.map(p => p.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="space-y-8">
-            {projects.map((project) => (
-              <DraggableProject
-                key={project.id}
-                project={project}
-              />
-            ))}
+      <div className="flex gap-6">
+        {/* 左侧导航栏 */}
+        <div className="w-60 shrink-0">
+          <div className="sticky top-4 bg-white rounded-lg border shadow-sm max-h-[80vh] overflow-auto p-2">
+            <div className="px-2 py-2 text-xs text-gray-500">项目导航</div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleProjectDragEnd}
+            >
+              <SortableContext
+                items={projects.map(p => p.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-1">
+                  {projects.map(project => (
+                    <DraggableSidebarItem key={`nav-${project.id}`} project={project} />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
           </div>
-        </SortableContext>
-      </DndContext>
+        </div>
+
+        {/* 右侧项目内容 */}
+        <div className="flex-1">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleProjectDragEnd}
+          >
+            <SortableContext
+              items={projects.map(p => p.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-8">
+                {projects.map((project) => (
+                  <DraggableProject
+                    key={project.id}
+                    project={project}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
+      </div>
 
       {projects.length === 0 && (
         <div className="text-center py-12">
