@@ -39,6 +39,7 @@ interface Project {
   项目盈亏率: number;
   自主盈亏率: number;
   状态: '进行' | '完成';
+  排序顺序?: number;
   创建时间: string;
   完成时间?: string;
 }
@@ -106,9 +107,13 @@ export default function ProjectsPage() {
       const response = await fetch('/api/projects');
       const data = await response.json();
       if (data.success) {
-        setProjects(data.data);
+        // 按排序顺序排序项目
+        const sortedProjects = data.data.sort((a: Project, b: Project) => 
+          (a.排序顺序 || 0) - (b.排序顺序 || 0)
+        );
+        setProjects(sortedProjects);
         // 为每个项目获取交易记录
-        for (const project of data.data) {
+        for (const project of sortedProjects) {
           await fetchTransactionsForProject(project.id);
         }
       }
@@ -490,8 +495,8 @@ export default function ProjectsPage() {
     return value === null || value === undefined;
   };
 
-  // 处理拖拽结束
-  const handleDragEnd = async (event: DragEndEvent, projectId: number) => {
+  // 处理交易拖拽结束
+  const handleTransactionDragEnd = async (event: DragEndEvent, projectId: number) => {
     const { active, over } = event;
 
     if (over && active.id !== over.id) {
@@ -528,6 +533,55 @@ export default function ProjectsPage() {
           });
         } catch (error) {
           console.error('更新排序失败:', error);
+        }
+      }
+    }
+  };
+
+  // 处理项目拖拽结束
+  const handleProjectDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = projects.findIndex(project => project.id === active.id);
+      const newIndex = projects.findIndex(project => project.id === over.id);
+
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newProjects = arrayMove(projects, oldIndex, newIndex);
+        
+        // 更新排序顺序
+        const updatedProjects = newProjects.map((project, index) => ({
+          ...project,
+          排序顺序: index
+        }));
+        
+        // 更新本地状态
+        setProjects(updatedProjects);
+
+        // 发送到服务器更新排序
+        try {
+          const response = await fetch('/api/projects/reorder', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              projects: updatedProjects.map(p => ({
+                id: p.id,
+                排序顺序: p.排序顺序
+              }))
+            }),
+          });
+
+          if (!response.ok) {
+            console.error('更新项目排序失败');
+            // 如果更新失败，重新获取数据
+            fetchProjects();
+          }
+        } catch (error) {
+          console.error('更新项目排序失败:', error);
+          // 如果更新失败，重新获取数据
+          fetchProjects();
         }
       }
     }
@@ -694,6 +748,219 @@ export default function ProjectsPage() {
     );
   };
 
+  // 可拖拽的项目组件
+  const DraggableProject = ({ project }: { project: Project }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: project.id });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`${isDragging ? 'opacity-50' : ''} bg-white rounded-lg shadow-md overflow-hidden`}
+      >
+        {/* 项目信息表格 */}
+        <div className="p-6 bg-gray-50 border-b">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-3">项目名称</th>
+                  <th className="text-left py-2 px-3">项目代号</th>
+                  <th className="text-left py-2 px-3">交易类型</th>
+                  <th className="text-left py-2 px-3">成本价</th>
+                  <th className="text-left py-2 px-3">当前价</th>
+                  <th className="text-left py-2 px-3">股数</th>
+                  <th className="text-left py-2 px-3">仓位</th>
+                  <th className="text-left py-2 px-3">成本金额</th>
+                  <th className="text-left py-2 px-3">当前金额</th>
+                  <th className="text-left py-2 px-3">盈亏金额</th>
+                  <th className="text-left py-2 px-3">项目盈亏率</th>
+                  <th className="text-left py-2 px-3">自主盈亏率</th>
+                  <th className="text-left py-2 px-3">状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td className="py-2 px-3 font-medium">
+                    <div className="flex items-center gap-2">
+                      <div
+                        {...attributes}
+                        {...listeners}
+                        className="cursor-grab hover:cursor-grabbing text-gray-400 hover:text-gray-600 p-1"
+                        title="拖拽排序"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 6h18M3 12h18M3 18h18"/>
+                        </svg>
+                      </div>
+                      <InlineEditText
+                        value={project.项目名称}
+                        onChange={(value) => updateProject(project.id, '项目名称', value)}
+                        className="font-medium text-blue-600"
+                      />
+                    </div>
+                  </td>
+                  <td className="py-2 px-3">
+                    <InlineEditText
+                      value={project.项目代号}
+                      onChange={(value) => updateProject(project.id, '项目代号', value)}
+                    />
+                  </td>
+                  <td className="py-2 px-3">
+                    <InlineEditSelect
+                      value={project.交易类型}
+                      options={[
+                        { value: '做多', label: '做多' },
+                        { value: '做空', label: '做空' }
+                      ]}
+                      onChange={(value) => updateProject(project.id, '交易类型', value)}
+                    />
+                  </td>
+                  <td className="py-2 px-3">
+                    {formatValueWithHideMode(project.成本价, '', '成本价')}
+                  </td>
+                  <td className="py-2 px-3">
+                    {hideValues && !shouldShowInHideMode('当前价') ? (
+                      '****'
+                    ) : (
+                      <InlineEditNumber
+                        value={project.当前价 || 0}
+                        onChange={(value) => updateProject(project.id, '当前价', value)}
+                        precision={2}
+                      />
+                    )}
+                  </td>
+                  <td className="py-2 px-3">
+                    {formatValueWithHideMode(project.股数, '', '股数')}
+                  </td>
+                  <td className="py-2 px-3">
+                    {formatValueWithHideMode(project.仓位, '%', '仓位')}
+                  </td>
+                  <td className="py-2 px-3">
+                    {hideValues ? '****' : formatValue(project.成本金额)}
+                  </td>
+                  <td className="py-2 px-3">
+                    {hideValues ? '****' : formatValue(project.当前金额)}
+                  </td>
+                  <td className={`py-2 px-3 ${getProfitColor(project.盈亏金额)}`}>
+                    {formatValueWithHideMode(project.盈亏金额, '', '盈亏金额')}
+                  </td>
+                  <td className={`py-2 px-3 ${getProfitColor(project.项目盈亏率)}`}>
+                    {formatValueWithHideMode(project.项目盈亏率, '%', '项目盈亏率')}
+                  </td>
+                  <td className={`py-2 px-3 ${getProfitColor(project.自主盈亏率)}`}>
+                    {formatValueWithHideMode(project.自主盈亏率, '%', '自主盈亏率')}
+                  </td>
+                  <td className="py-2 px-3">
+                    <div className="flex items-center gap-2">
+                      <InlineEditSelect
+                        value={project.状态}
+                        options={[
+                          { value: '进行', label: '进行' },
+                          { value: '完成', label: '完成' }
+                        ]}
+                        onChange={(value) => updateProject(project.id, '状态', value)}
+                      />
+                      <button
+                        onClick={() => deleteProject(project.id)}
+                        className="w-5 h-5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded flex items-center justify-center transition-colors"
+                        title="删除项目"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 交易记录表格 */}
+        <div className="p-6">
+          {transactions[project.id] && transactions[project.id].length > 0 ? (
+            <div className="overflow-x-auto">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => handleTransactionDragEnd(event, project.id)}
+              >
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-3">状态</th>
+                      <th className="text-left py-2 px-3">交易名称</th>
+                      <th className="text-left py-2 px-3">交易类型</th>
+                      <th className="text-left py-2 px-3">警告方向</th>
+                      <th className="text-left py-2 px-3">距离</th>
+                      <th className="text-left py-2 px-3">交易价</th>
+                      <th className="text-left py-2 px-3">股数</th>
+                      <th className="text-left py-2 px-3">仓位</th>
+                      <th className="text-left py-2 px-3">交易金额</th>
+                      <th className="text-left py-2 px-3">创建时间</th>
+                      <th className="text-center py-2 px-3 w-16">
+                        <button
+                          onClick={() => createTransaction(project.id)}
+                          className="text-green-500 hover:text-green-700 hover:bg-green-50 rounded p-1 transition-colors"
+                          title="新增交易记录"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 5v14M5 12h14"/>
+                          </svg>
+                        </button>
+                      </th>
+                    </tr>
+                  </thead>
+                  <SortableContext
+                    items={transactions[project.id].map(t => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <tbody>
+                      {transactions[project.id]
+                        .sort((a, b) => (a.排序顺序 || 0) - (b.排序顺序 || 0))
+                        .map((transaction) => (
+                        <DraggableTransactionRow
+                          key={transaction.id}
+                          transaction={transaction}
+                          projectId={project.id}
+                        />
+                      ))}
+                    </tbody>
+                  </SortableContext>
+                </table>
+              </DndContext>
+            </div>
+          ) : (
+            <div className="text-gray-500 text-center py-0">
+              <div className="flex items-center justify-center gap-2">
+                <span>暂无交易记录</span>
+                <button
+                  onClick={() => createTransaction(project.id)}
+                  className="ml-2 w-6 h-6 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors flex items-center justify-center text-sm font-bold"
+                  title="添加交易"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -725,187 +992,25 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      <div className="space-y-8">
-        {projects.map((project) => (
-          <div key={project.id} className="bg-white rounded-lg shadow-md overflow-hidden">
-            {/* 项目信息表格 */}
-            <div className="p-6 bg-gray-50 border-b">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-3">项目名称</th>
-                      <th className="text-left py-2 px-3">项目代号</th>
-                      <th className="text-left py-2 px-3">交易类型</th>
-                      <th className="text-left py-2 px-3">成本价</th>
-                      <th className="text-left py-2 px-3">当前价</th>
-                      <th className="text-left py-2 px-3">股数</th>
-                      <th className="text-left py-2 px-3">仓位</th>
-                      <th className="text-left py-2 px-3">成本金额</th>
-                      <th className="text-left py-2 px-3">当前金额</th>
-                      <th className="text-left py-2 px-3">盈亏金额</th>
-                      <th className="text-left py-2 px-3">项目盈亏率</th>
-                      <th className="text-left py-2 px-3">自主盈亏率</th>
-                      <th className="text-left py-2 px-3">状态</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="py-2 px-3 font-medium">
-                        <InlineEditText
-                          value={project.项目名称}
-                          onChange={(value) => updateProject(project.id, '项目名称', value)}
-                          className="font-medium text-blue-600"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <InlineEditText
-                          value={project.项目代号}
-                          onChange={(value) => updateProject(project.id, '项目代号', value)}
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <InlineEditSelect
-                          value={project.交易类型}
-                          options={[
-                            { value: '做多', label: '做多' },
-                            { value: '做空', label: '做空' }
-                          ]}
-                          onChange={(value) => updateProject(project.id, '交易类型', value)}
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        {formatValueWithHideMode(project.成本价, '', '成本价')}
-                      </td>
-                      <td className="py-2 px-3">
-                        {hideValues && !shouldShowInHideMode('当前价') ? (
-                          '****'
-                        ) : (
-                          <InlineEditNumber
-                            value={project.当前价 || 0}
-                            onChange={(value) => updateProject(project.id, '当前价', value)}
-                            precision={2}
-                          />
-                        )}
-                      </td>
-                      <td className="py-2 px-3">
-                        {formatValueWithHideMode(project.股数, '', '股数')}
-                      </td>
-                      <td className="py-2 px-3">
-                        {formatValueWithHideMode(project.仓位, '%', '仓位')}
-                      </td>
-                      <td className="py-2 px-3">
-                        {hideValues ? '****' : formatValue(project.成本金额)}
-                      </td>
-                      <td className="py-2 px-3">
-                        {hideValues ? '****' : formatValue(project.当前金额)}
-                      </td>
-                      <td className={`py-2 px-3 ${getProfitColor(project.盈亏金额)}`}>
-                        {formatValueWithHideMode(project.盈亏金额, '', '盈亏金额')}
-                      </td>
-                      <td className={`py-2 px-3 ${getProfitColor(project.项目盈亏率)}`}>
-                        {formatValueWithHideMode(project.项目盈亏率, '%', '项目盈亏率')}
-                      </td>
-                      <td className={`py-2 px-3 ${getProfitColor(project.自主盈亏率)}`}>
-                        {formatValueWithHideMode(project.自主盈亏率, '%', '自主盈亏率')}
-                      </td>
-                      <td className="py-2 px-3">
-                        <div className="flex items-center gap-2">
-                          <InlineEditSelect
-                            value={project.状态}
-                            options={[
-                              { value: '进行', label: '进行' },
-                              { value: '完成', label: '完成' }
-                            ]}
-                            onChange={(value) => updateProject(project.id, '状态', value)}
-                          />
-                          <button
-                            onClick={() => deleteProject(project.id)}
-                            className="w-5 h-5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded flex items-center justify-center transition-colors"
-                            title="删除项目"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* 交易记录表格 */}
-            <div className="p-6">
-              {transactions[project.id] && transactions[project.id].length > 0 ? (
-                <div className="overflow-x-auto">
-                  <DndContext
-                    sensors={sensors}
-                    collisionDetection={closestCenter}
-                    onDragEnd={(event) => handleDragEnd(event, project.id)}
-                  >
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 px-3">状态</th>
-                          <th className="text-left py-2 px-3">交易名称</th>
-                          <th className="text-left py-2 px-3">交易类型</th>
-                          <th className="text-left py-2 px-3">警告方向</th>
-                          <th className="text-left py-2 px-3">距离</th>
-                          <th className="text-left py-2 px-3">交易价</th>
-                          <th className="text-left py-2 px-3">股数</th>
-                          <th className="text-left py-2 px-3">仓位</th>
-                          <th className="text-left py-2 px-3">交易金额</th>
-                          <th className="text-left py-2 px-3">创建时间</th>
-                          <th className="text-center py-2 px-3 w-16">
-                            <button
-                              onClick={() => createTransaction(project.id)}
-                              className="text-green-500 hover:text-green-700 hover:bg-green-50 rounded p-1 transition-colors"
-                              title="新增交易记录"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M12 5v14M5 12h14"/>
-                              </svg>
-                            </button>
-                          </th>
-                        </tr>
-                      </thead>
-                      <SortableContext
-                        items={transactions[project.id].map(t => t.id)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <tbody>
-                          {transactions[project.id]
-                            .sort((a, b) => (a.排序顺序 || 0) - (b.排序顺序 || 0))
-                            .map((transaction) => (
-                            <DraggableTransactionRow
-                              key={transaction.id}
-                              transaction={transaction}
-                              projectId={project.id}
-                            />
-                          ))}
-                        </tbody>
-                      </SortableContext>
-                    </table>
-                  </DndContext>
-                </div>
-              ) : (
-                <div className="text-gray-500 text-center py-0">
-                  <div className="flex items-center justify-center gap-2">
-                    <span>暂无交易记录</span>
-                    <button
-                      onClick={() => createTransaction(project.id)}
-                      className="ml-2 w-6 h-6 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors flex items-center justify-center text-sm font-bold"
-                      title="添加交易"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleProjectDragEnd}
+      >
+        <SortableContext
+          items={projects.map(p => p.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="space-y-8">
+            {projects.map((project) => (
+              <DraggableProject
+                key={project.id}
+                project={project}
+              />
+            ))}
           </div>
-        ))}
-      </div>
+        </SortableContext>
+      </DndContext>
 
       {projects.length === 0 && (
         <div className="text-center py-12">

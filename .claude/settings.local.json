@@ -17,7 +17,8 @@
       "Bash(/bashes)",
       "Bash(npm run build:*)",
       "Bash(start http://localhost:3002)",
-      "Bash(start http://localhost:3002/projects)"
+      "Bash(start http://localhost:3002/projects)",
+      "Bash(sqlite3:*)"
     ],
     "deny": [],
     "ask": []

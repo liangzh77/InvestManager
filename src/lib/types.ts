@@ -15,6 +15,7 @@ export interface Project {
   项目盈亏率?: number;
   自主盈亏率?: number;
   状态: '进行' | '完成';
+  排序顺序?: number;
   创建时间?: string;
   完成时间?: string;
 }

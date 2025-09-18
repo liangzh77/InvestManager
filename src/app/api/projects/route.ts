@@ -6,7 +6,7 @@ import { Project } from '@/lib/types';
 export async function GET() {
   try {
     const db = getDatabase();
-    const projects = db.prepare('SELECT * FROM projects ORDER BY 创建时间 DESC').all();
+    const projects = db.prepare('SELECT * FROM projects ORDER BY 排序顺序 ASC, 创建时间 DESC').all();
 
     return NextResponse.json({
       success: true,
@@ -36,10 +36,15 @@ export async function POST(request: NextRequest) {
     }
 
     const db = getDatabase();
+    
+    // 获取当前最大排序顺序
+    const maxSortResult = db.prepare('SELECT MAX(排序顺序) as maxSort FROM projects').get() as { maxSort: number | null };
+    const nextSortOrder = (maxSortResult.maxSort || 0) + 1;
+    
     const stmt = db.prepare(`
       INSERT INTO projects (
-        项目名称, 项目代号, 交易类型, 当前价, 状态, 创建时间
-      ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        项目名称, 项目代号, 交易类型, 当前价, 状态, 排序顺序, 创建时间
+      ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
 
     const result = stmt.run(
@@ -47,7 +52,8 @@ export async function POST(request: NextRequest) {
       data.项目代号 || null,
       data.交易类型,
       data.当前价 || null,
-      data.状态
+      data.状态,
+      nextSortOrder
     );
 
     // 获取创建的项目
