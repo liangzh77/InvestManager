@@ -5,25 +5,6 @@ import { InlineEditText } from '@/components/editable/InlineEditText';
 import { InlineEditNumber } from '@/components/editable/InlineEditNumber';
 import { InlineEditSelect } from '@/components/editable/InlineEditSelect';
 import { InlineEditDate } from '@/components/editable/InlineEditDate';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
 interface Project {
   id: number;
@@ -59,14 +40,6 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [hideValues, setHideValues] = useState(false);
   const [totalAmount, setTotalAmount] = useState(100000);
-
-  // 拖拽传感器
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
 
   // 获取总金额
   const fetchTotalAmount = async () => {
@@ -145,36 +118,39 @@ export default function PlansPage() {
 
   useEffect(() => {
     const loadData = async () => {
-      await Promise.all([
-        fetchTotalAmount(),
-        fetchProjects(),
-        fetchPlanTransactions()
-      ]);
+      // 1. 获取总金额
+      await fetchTotalAmount();
+
+      // 2. 获取项目数据
+      const projectsResponse = await fetch('/api/projects');
+      const projectsData = await projectsResponse.json();
+      let fetchedProjects: Project[] = [];
+      if (projectsData.success) {
+        fetchedProjects = projectsData.data.sort((a: Project, b: Project) =>
+          (a.排序顺序 || 0) - (b.排序顺序 || 0)
+        );
+        setProjects(fetchedProjects);
+      }
+
+      // 3. 获取计划交易并立即排序
+      const transactionsResponse = await fetch('/api/transactions');
+      const transactionsData = await transactionsResponse.json();
+      if (transactionsData.success) {
+        const plans = transactionsData.data.filter((t: Transaction) => t.状态 === '计划');
+
+        // 立即排序
+        if (fetchedProjects.length > 0) {
+          const sortedPlans = sortPlanTransactionsByProjectOrder(plans, fetchedProjects);
+          setPlanTransactions(sortedPlans);
+        } else {
+          setPlanTransactions(plans);
+        }
+      }
+
       setLoading(false);
     };
     loadData();
   }, []);
-
-  // 数据加载完成后进行排序
-  useEffect(() => {
-    if (!loading && projects.length > 0 && planTransactions.length > 0) {
-      const sortedTransactions = sortPlanTransactionsByProjectOrder([...planTransactions], projects);
-      setPlanTransactions(sortedTransactions);
-    }
-  }, [loading, projects.length, planTransactions.length]);
-
-  // 当项目数据变化时，重新排序计划交易
-  useEffect(() => {
-    if (projects.length > 0 && planTransactions.length > 0) {
-      const sortedTransactions = sortPlanTransactionsByProjectOrder([...planTransactions], projects);
-      // 只有排序结果不同时才更新
-      const currentOrder = planTransactions.map(t => t.id).join(',');
-      const newOrder = sortedTransactions.map(t => t.id).join(',');
-      if (currentOrder !== newOrder) {
-        setPlanTransactions(sortedTransactions);
-      }
-    }
-  }, [projects]);
 
   // 更新交易信息
   const updateTransaction = async (transactionId: number, field: string, value: any) => {
@@ -329,61 +305,37 @@ export default function PlansPage() {
     }
   };
 
-  // 处理拖拽结束
-  const handleDragEnd = async (event: DragEndEvent) => {
-    const { active, over } = event;
-
-    if (over && active.id !== over.id) {
-      const oldIndex = planTransactions.findIndex(item => item.id === active.id);
-      const newIndex = planTransactions.findIndex(item => item.id === over.id);
-
-      if (oldIndex !== -1 && newIndex !== -1) {
-        const newTransactions = arrayMove(planTransactions, oldIndex, newIndex);
-
-        // 更新本地状态
-        setPlanTransactions(newTransactions);
-
-        // 重新计算每个项目内的交易排序顺序
-        const projectTransactionCounts = new Map<number, number>();
-        const updatedTransactions: any[] = [];
-
-        newTransactions.forEach((transaction) => {
-          const projectId = transaction.项目ID;
-          const currentCount = projectTransactionCounts.get(projectId) || 0;
-
-          updatedTransactions.push({
-            id: transaction.id,
-            排序顺序: currentCount
-          });
-
-          projectTransactionCounts.set(projectId, currentCount + 1);
-        });
-
-        // 更新服务器端排序
-        try {
-          await fetch('/api/transactions/reorder', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              transactions: updatedTransactions
-            }),
-          });
-        } catch (error) {
-          console.error('更新排序失败:', error);
-        }
-      }
-    }
-  };
 
   // 刷新数据并重新排序
   const refreshData = async () => {
-    await Promise.all([
-      fetchTotalAmount(),
-      fetchProjects(),
-      fetchPlanTransactions()
-    ]);
+    // 1. 获取总金额
+    await fetchTotalAmount();
+
+    // 2. 获取项目数据
+    const projectsResponse = await fetch('/api/projects');
+    const projectsData = await projectsResponse.json();
+    let fetchedProjects: Project[] = [];
+    if (projectsData.success) {
+      fetchedProjects = projectsData.data.sort((a: Project, b: Project) =>
+        (a.排序顺序 || 0) - (b.排序顺序 || 0)
+      );
+      setProjects(fetchedProjects);
+    }
+
+    // 3. 获取计划交易并立即排序
+    const transactionsResponse = await fetch('/api/transactions');
+    const transactionsData = await transactionsResponse.json();
+    if (transactionsData.success) {
+      const plans = transactionsData.data.filter((t: Transaction) => t.状态 === '计划');
+
+      // 立即排序
+      if (fetchedProjects.length > 0) {
+        const sortedPlans = sortPlanTransactionsByProjectOrder(plans, fetchedProjects);
+        setPlanTransactions(sortedPlans);
+      } else {
+        setPlanTransactions(plans);
+      }
+    }
   };
 
   // 数值隐藏/显示功能
@@ -459,165 +411,6 @@ export default function PlansPage() {
     return 'text-blue-600';
   };
 
-  // 可拖拽的交易行组件
-  const DraggableTransactionRow = ({ transaction }: { transaction: Transaction }) => {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-      isDragging,
-    } = useSortable({ id: transaction.id });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
-
-    return (
-      <tr
-        ref={setNodeRef}
-        style={style}
-        className={`border-b hover:bg-gray-50 ${isDragging ? 'opacity-50' : ''}`}
-      >
-        <td className="py-3 px-4">
-          <div className="flex items-center gap-2">
-            <button
-              {...attributes}
-              {...listeners}
-              className="cursor-grab hover:cursor-grabbing text-gray-400 hover:text-gray-600 p-1"
-              title="拖拽排序"
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                <path d="M3 2h6v1H3V2zm0 3h6v1H3V5zm0 3h6v1H3V8z"/>
-              </svg>
-            </button>
-            <span className="font-medium text-blue-600">
-              {getProjectName(transaction.项目ID)}
-            </span>
-          </div>
-        </td>
-        <td className="py-3 px-4">
-          <InlineEditText
-            value={transaction.交易名称}
-            onChange={(value) => updateTransaction(transaction.id, '交易名称', value)}
-            placeholder="交易名称"
-          />
-        </td>
-        <td className="py-3 px-4">
-          <InlineEditSelect
-            value={transaction.交易类型}
-            options={[
-              { value: '做多', label: '做多' },
-              { value: '做空', label: '做空' },
-              { value: '多头平仓', label: '多头平仓' },
-              { value: '空头平仓', label: '空头平仓' }
-            ]}
-            onChange={(value) => updateTransaction(transaction.id, '交易类型', value)}
-          />
-        </td>
-        <td className="py-3 px-4">
-          {hideValues && !shouldShowInHideMode('当前价') ? (
-            '****'
-          ) : (
-            <InlineEditNumber
-              value={getCurrentPrice(transaction.项目ID) || 0}
-              onChange={(value) => updateProjectCurrentPrice(transaction.项目ID, value)}
-              precision={2}
-              placeholder="0"
-            />
-          )}
-        </td>
-        <td className="py-3 px-4">
-          <InlineEditSelect
-            value={transaction.警告方向}
-            options={[
-              { value: '向上', label: '向上' },
-              { value: '向下', label: '向下' }
-            ]}
-            onChange={(value) => updateTransaction(transaction.id, '警告方向', value)}
-          />
-        </td>
-        <td className={`py-3 px-4 ${getDistanceColor(transaction.距离 || 0)}`}>
-          <InlineEditNumber
-            value={transaction.距离 || 0}
-            onChange={(value) => updateTransaction(transaction.id, '距离', value)}
-            precision={1}
-            suffix="%"
-            placeholder="0"
-          />
-        </td>
-        <td className="py-3 px-4">
-          {hideValues && !shouldShowInHideMode('交易价') ? (
-            '****'
-          ) : (
-            <InlineEditNumber
-              value={transaction.交易价 || 0}
-              onChange={(value) => updateTransaction(transaction.id, '交易价', value)}
-              precision={2}
-              placeholder="0"
-            />
-          )}
-        </td>
-        <td className="py-3 px-4">
-          {hideValues ? (
-            '****'
-          ) : (
-            <InlineEditNumber
-              value={transaction.股数 || 0}
-              onChange={(value) => updateTransaction(transaction.id, '股数', value)}
-              precision={0}
-              placeholder="0"
-            />
-          )}
-        </td>
-        <td className="py-3 px-4">
-          {hideValues && !shouldShowInHideMode('仓位') ? (
-            '****'
-          ) : (
-            <InlineEditNumber
-              value={transaction.仓位 || 0}
-              onChange={(value) => updateTransaction(transaction.id, '仓位', value)}
-              precision={1}
-              suffix="%"
-              placeholder="0"
-            />
-          )}
-        </td>
-        <td className="py-3 px-4">
-          {hideValues ? (
-            '****'
-          ) : (
-            <InlineEditNumber
-              value={transaction.交易金额 || 0}
-              onChange={(value) => updateTransaction(transaction.id, '交易金额', value)}
-              precision={2}
-              placeholder="0"
-            />
-          )}
-        </td>
-        <td className="py-3 px-4">
-          <InlineEditDate
-            value={transaction.创建时间}
-            onChange={(value) => updateTransaction(transaction.id, '创建时间', value)}
-            placeholder="选择创建时间"
-          />
-        </td>
-        <td className="py-3 px-4 text-center">
-          <button
-            onClick={() => deletePlanTransaction(transaction.id)}
-            className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
-            title="删除计划"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6"/>
-            </svg>
-          </button>
-        </td>
-      </tr>
-    );
-  };
 
   if (loading) {
     return (
@@ -653,43 +446,150 @@ export default function PlansPage() {
       {planTransactions.length > 0 ? (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="overflow-x-auto">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-100">
-                    <th className="text-left py-3 px-4">项目名称</th>
-                    <th className="text-left py-3 px-4">交易名称</th>
-                    <th className="text-left py-3 px-4">交易类型</th>
-                    <th className="text-left py-3 px-4">当前价</th>
-                    <th className="text-left py-3 px-4">警告方向</th>
-                    <th className="text-left py-3 px-4">距离</th>
-                    <th className="text-left py-3 px-4">交易价</th>
-                    <th className="text-left py-3 px-4">股数</th>
-                    <th className="text-left py-3 px-4">仓位</th>
-                    <th className="text-left py-3 px-4">交易金额</th>
-                    <th className="text-left py-3 px-4">创建时间</th>
-                    <th className="text-center py-3 px-4">操作</th>
-                  </tr>
-                </thead>
-                <SortableContext
-                  items={planTransactions.map(t => t.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  <tbody>
-                    {planTransactions.map((transaction) => (
-                      <DraggableTransactionRow
-                        key={transaction.id}
-                        transaction={transaction}
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-gray-100">
+                  <th className="text-left py-3 px-4">项目名称</th>
+                  <th className="text-left py-3 px-4">交易名称</th>
+                  <th className="text-left py-3 px-4">交易类型</th>
+                  <th className="text-left py-3 px-4">当前价</th>
+                  <th className="text-left py-3 px-4">警告方向</th>
+                  <th className="text-left py-3 px-4">距离</th>
+                  <th className="text-left py-3 px-4">交易价</th>
+                  <th className="text-left py-3 px-4">股数</th>
+                  <th className="text-left py-3 px-4">仓位</th>
+                  <th className="text-left py-3 px-4">交易金额</th>
+                  <th className="text-left py-3 px-4">创建时间</th>
+                  <th className="text-center py-3 px-4">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {planTransactions.map((transaction) => (
+                  <tr key={transaction.id} className="border-b hover:bg-gray-50">
+                    <td className="py-3 px-4 font-medium text-blue-600">
+                      {getProjectName(transaction.项目ID)}
+                    </td>
+                    <td className="py-3 px-4">
+                      <InlineEditText
+                        value={transaction.交易名称}
+                        onChange={(value) => updateTransaction(transaction.id, '交易名称', value)}
+                        placeholder="交易名称"
                       />
-                    ))}
-                  </tbody>
-                </SortableContext>
-              </table>
-            </DndContext>
+                    </td>
+                    <td className="py-3 px-4">
+                      <InlineEditSelect
+                        value={transaction.交易类型}
+                        options={[
+                          { value: '做多', label: '做多' },
+                          { value: '做空', label: '做空' },
+                          { value: '多头平仓', label: '多头平仓' },
+                          { value: '空头平仓', label: '空头平仓' }
+                        ]}
+                        onChange={(value) => updateTransaction(transaction.id, '交易类型', value)}
+                      />
+                    </td>
+                    <td className="py-3 px-4">
+                      {hideValues && !shouldShowInHideMode('当前价') ? (
+                        '****'
+                      ) : (
+                        <InlineEditNumber
+                          value={getCurrentPrice(transaction.项目ID) || 0}
+                          onChange={(value) => updateProjectCurrentPrice(transaction.项目ID, value)}
+                          precision={2}
+                          placeholder="0"
+                        />
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <InlineEditSelect
+                        value={transaction.警告方向}
+                        options={[
+                          { value: '向上', label: '向上' },
+                          { value: '向下', label: '向下' }
+                        ]}
+                        onChange={(value) => updateTransaction(transaction.id, '警告方向', value)}
+                      />
+                    </td>
+                    <td className={`py-3 px-4 ${getDistanceColor(transaction.距离 || 0)}`}>
+                      <InlineEditNumber
+                        value={transaction.距离 || 0}
+                        onChange={(value) => updateTransaction(transaction.id, '距离', value)}
+                        precision={1}
+                        suffix="%"
+                        placeholder="0"
+                      />
+                    </td>
+                    <td className="py-3 px-4">
+                      {hideValues && !shouldShowInHideMode('交易价') ? (
+                        '****'
+                      ) : (
+                        <InlineEditNumber
+                          value={transaction.交易价 || 0}
+                          onChange={(value) => updateTransaction(transaction.id, '交易价', value)}
+                          precision={2}
+                          placeholder="0"
+                        />
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {hideValues ? (
+                        '****'
+                      ) : (
+                        <InlineEditNumber
+                          value={transaction.股数 || 0}
+                          onChange={(value) => updateTransaction(transaction.id, '股数', value)}
+                          precision={0}
+                          placeholder="0"
+                        />
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {hideValues && !shouldShowInHideMode('仓位') ? (
+                        '****'
+                      ) : (
+                        <InlineEditNumber
+                          value={transaction.仓位 || 0}
+                          onChange={(value) => updateTransaction(transaction.id, '仓位', value)}
+                          precision={1}
+                          suffix="%"
+                          placeholder="0"
+                        />
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {hideValues ? (
+                        '****'
+                      ) : (
+                        <InlineEditNumber
+                          value={transaction.交易金额 || 0}
+                          onChange={(value) => updateTransaction(transaction.id, '交易金额', value)}
+                          precision={2}
+                          placeholder="0"
+                        />
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      <InlineEditDate
+                        value={transaction.创建时间}
+                        onChange={(value) => updateTransaction(transaction.id, '创建时间', value)}
+                        placeholder="选择创建时间"
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        onClick={() => deletePlanTransaction(transaction.id)}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50 rounded p-1 transition-colors"
+                        title="删除计划"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M10 11v6M14 11v6"/>
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       ) : (

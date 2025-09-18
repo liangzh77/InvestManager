@@ -979,7 +979,7 @@ export default function ProjectsPage() {
         id={`project-${project.id}`}
       >
         {/* 项目信息表格 */}
-        <div className="p-6 bg-gray-50 border-b">
+        <div className="p-2 bg-gray-50 border-b">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -1097,7 +1097,7 @@ export default function ProjectsPage() {
         </div>
 
         {/* 交易记录表格 */}
-        <div className="p-6">
+        <div className="p-2">
           {transactions[project.id] && transactions[project.id].length > 0 ? (
             <div className="overflow-x-auto">
               <DndContext
