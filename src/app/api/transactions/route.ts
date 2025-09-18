@@ -95,11 +95,11 @@ export async function POST(request: NextRequest) {
       db.prepare(`
         UPDATE projects SET
           成本价 = ?, 股数 = ?, 仓位 = ?, 成本金额 = ?,
-          当前金额 = ?, 盈亏金额 = ?, 项目盈亏率 = ?, 自主盈亏率 = ?
+          当前金额 = ?, 盈亏金额 = ?, 项目盈亏率 = ?, 总盈亏率 = ?
         WHERE id = ?
       `).run(
         stats.成本价, stats.股数, stats.仓位, stats.成本金额,
-        stats.当前金额, stats.盈亏金额, stats.项目盈亏率, stats.自主盈亏率,
+        stats.当前金额, stats.盈亏金额, stats.项目盈亏率, stats.总盈亏率,
         data.项目ID
       );
     }

@@ -74,7 +74,7 @@ export interface ProjectCalculationResult {
   当前金额: number;
   盈亏金额: number;
   项目盈亏率: number;
-  自主盈亏率: number;
+  总盈亏率: number;
 }
 
 export function calculateProjectMetrics(
@@ -105,7 +105,7 @@ export function calculateProjectMetrics(
   const 盈亏金额 = 当前金额 - 总成本金额;
   const 项目盈亏率 = 总成本金额 > 0 ? (盈亏金额 / 总成本金额) * 100 : 0;
   const 仓位 = 自主总金额 > 0 ? (当前金额 / 自主总金额) * 100 : 0;
-  const 自主盈亏率 = 自主总金额 > 0 ? (盈亏金额 / 自主总金额) * 100 : 0;
+  const 总盈亏率 = 自主总金额 > 0 ? (盈亏金额 / 自主总金额) * 100 : 0;
 
   return {
     成本价,
@@ -115,6 +115,6 @@ export function calculateProjectMetrics(
     当前金额,
     盈亏金额,
     项目盈亏率,
-    自主盈亏率
+    总盈亏率
   };
 }

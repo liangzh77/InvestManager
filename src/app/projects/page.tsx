@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { calculateProjectMetrics } from '@/lib/calculations';
 import { InlineEditText } from '@/components/editable/InlineEditText';
 import { InlineEditNumber } from '@/components/editable/InlineEditNumber';
 import { InlineEditSelect } from '@/components/editable/InlineEditSelect';
@@ -38,7 +39,7 @@ interface Project {
   当前金额: number;
   盈亏金额: number;
   项目盈亏率: number;
-  自主盈亏率: number;
+  总盈亏率: number;
   状态: '进行' | '完成';
   排序顺序?: number;
   创建时间: string;
@@ -165,20 +166,46 @@ export default function ProjectsPage() {
   // 更新项目信息
   const updateProject = async (projectId: number, field: string, value: any) => {
     try {
+      // 如果修改的是当前价，则联动计算并一并提交
+      let payload: any = { [field]: value };
+      if (field === '当前价') {
+        const projectTransactions = transactions[projectId] || [];
+        const metrics = calculateProjectMetrics(projectTransactions || [], value || 0, totalAmount || 100000);
+        payload = {
+          ...payload,
+          当前金额: metrics.当前金额,
+          盈亏金额: metrics.盈亏金额,
+          项目盈亏率: metrics.项目盈亏率,
+          总盈亏率: metrics.总盈亏率,
+        };
+      }
+
       const response = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ [field]: value }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
       if (data.success) {
         // 更新本地状态
-        setProjects(prev => prev.map(p =>
-          p.id === projectId ? { ...p, [field]: value } : p
-        ));
+        // 本地状态同步：若是当前价，联动更新衍生字段
+        setProjects(prev => prev.map(p => {
+          if (p.id !== projectId) return p;
+          if (field !== '当前价') return { ...p, [field]: value };
+          const projectTransactions = transactions[projectId] || [];
+          const metrics = calculateProjectMetrics(projectTransactions || [], value || 0, totalAmount || 100000);
+          return {
+            ...p,
+            [field]: value,
+            当前金额: metrics.当前金额,
+            盈亏金额: metrics.盈亏金额,
+            项目盈亏率: metrics.项目盈亏率,
+            总盈亏率: metrics.总盈亏率,
+          };
+        }));
 
         // 如果更新的是影响计算的字段，刷新总金额
         const financialFields = ['成本价', '当前价', '股数', '成本金额', '当前金额', '盈亏金额'];
@@ -503,14 +530,39 @@ export default function ProjectsPage() {
 
   // 判断字段是否应该在隐藏状态下显示
   const shouldShowInHideMode = (fieldName: string) => {
-    const alwaysVisibleFields = ['成本价', '当前价', '仓位', '项目盈亏率', '自主盈亏率', '交易价'];
+    const alwaysVisibleFields = ['成本价', '当前价', '仓位', '项目盈亏率', '总盈亏率', '交易价'];
     return alwaysVisibleFields.includes(fieldName);
+  };
+
+  // 百分比统一保留1位小数；成本价按阈值格式化
+  const formatPercentToOneDecimal = (val: number) => {
+    const fixed = Number.isFinite(val) ? Number(val.toFixed(1)) : 0;
+    return fixed.toLocaleString();
+  };
+
+  const formatCostPrice = (val: number) => {
+    if (!Number.isFinite(val)) return '-';
+    if (Math.abs(val) > 999) return Number(val.toFixed(0)).toLocaleString();
+    if (Math.abs(val) > 99) return Number(val.toFixed(1)).toLocaleString();
+    return Number(val.toFixed(2)).toLocaleString();
   };
 
   // 格式化数值，考虑隐藏模式下的特殊显示
   const formatValueWithHideMode = (value: number | null, suffix = '', fieldName = '') => {
     if (value === null || value === undefined) return '-';
     if (hideValues && !shouldShowInHideMode(fieldName)) return '****';
+
+    // 百分比字段统一1位小数
+    const percentFields = ['仓位', '项目盈亏率', '总盈亏率', '距离'];
+    if (percentFields.includes(fieldName)) {
+      return formatPercentToOneDecimal(value) + suffix;
+    }
+
+    // 成本价按阈值格式化
+    if (fieldName === '成本价') {
+      return formatCostPrice(value);
+    }
+
     return value.toLocaleString() + suffix;
   };
 
@@ -687,23 +739,31 @@ export default function ProjectsPage() {
           />
         </td>
         <td className="py-2 px-3">
-          <InlineEditSelect
-            value={transaction.警告方向}
-            options={[
-              { value: '向上', label: '向上' },
-              { value: '向下', label: '向下' }
-            ]}
-            onChange={(value) => updateTransaction(transaction.id, '警告方向', value)}
-          />
+          {transaction.状态 === '完成' ? (
+            <span className="text-gray-400">-</span>
+          ) : (
+            <InlineEditSelect
+              value={transaction.警告方向}
+              options={[
+                { value: '向上', label: '向上' },
+                { value: '向下', label: '向下' }
+              ]}
+              onChange={(value) => updateTransaction(transaction.id, '警告方向', value)}
+            />
+          )}
         </td>
         <td className="py-2 px-3">
-          <InlineEditNumber
-            value={transaction.距离 || 0}
-            onChange={(value) => updateTransaction(transaction.id, '距离', value)}
-            precision={2}
-            suffix="%"
-            placeholder="距离"
-          />
+          {transaction.状态 === '完成' ? (
+            <span className="text-gray-400">-</span>
+          ) : (
+            <InlineEditNumber
+              value={transaction.距离 || 0}
+              onChange={(value) => updateTransaction(transaction.id, '距离', value)}
+              precision={1}
+              suffix="%"
+              placeholder="距离"
+            />
+          )}
         </td>
         <td className="py-2 px-3">
           {hideValues && !shouldShowInHideMode('交易价') ? (
@@ -736,7 +796,7 @@ export default function ProjectsPage() {
             <InlineEditNumber
               value={transaction.仓位 || 0}
               onChange={(value) => updateTransaction(transaction.id, '仓位', value)}
-              precision={2}
+              precision={1}
               suffix="%"
               placeholder="仓位"
             />
@@ -815,7 +875,7 @@ export default function ProjectsPage() {
                   <th className="text-left py-2 px-3">当前金额</th>
                   <th className="text-left py-2 px-3">盈亏金额</th>
                   <th className="text-left py-2 px-3">项目盈亏率</th>
-                  <th className="text-left py-2 px-3">自主盈亏率</th>
+                  <th className="text-left py-2 px-3">总盈亏率</th>
                   <th className="text-left py-2 px-3">状态</th>
                 </tr>
               </thead>
@@ -888,8 +948,8 @@ export default function ProjectsPage() {
                   <td className={`py-2 px-3 ${getProfitColor(project.项目盈亏率)}`}>
                     {formatValueWithHideMode(project.项目盈亏率, '%', '项目盈亏率')}
                   </td>
-                  <td className={`py-2 px-3 ${getProfitColor(project.自主盈亏率)}`}>
-                    {formatValueWithHideMode(project.自主盈亏率, '%', '自主盈亏率')}
+                  <td className={`py-2 px-3 ${getProfitColor(project.总盈亏率)}`}>
+                    {formatValueWithHideMode(project.总盈亏率, '%', '总盈亏率')}
                   </td>
                   <td className="py-2 px-3">
                     <div className="flex items-center gap-2">

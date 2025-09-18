@@ -69,7 +69,7 @@ export async function GET(
         : 0,
       盈亏金额: project.盈亏金额 || 0,
       项目盈亏率: project.项目盈亏率 || 0,
-      自主盈亏率: project.自主盈亏率 || 0
+      总盈亏率: project.总盈亏率 || 0
     };
 
     // 计算仓位信息

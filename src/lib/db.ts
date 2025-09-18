@@ -83,7 +83,7 @@ function migrateDatabase(database: Database.Database) {
         当前金额 REAL,
         盈亏金额 REAL,
         项目盈亏率 REAL,
-        自主盈亏率 REAL,
+        总盈亏率 REAL,
         状态 TEXT CHECK(状态 IN ('进行', '完成')),
         排序顺序 INTEGER DEFAULT 0,
         创建时间 DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -95,12 +95,12 @@ function migrateDatabase(database: Database.Database) {
     database.exec(`
       INSERT INTO projects_temp (
         id, 项目名称, 项目代号, 交易类型, 成本价, 当前价, 股数, 仓位,
-        成本金额, 当前金额, 盈亏金额, 项目盈亏率, 自主盈亏率, 状态,
+        成本金额, 当前金额, 盈亏金额, 项目盈亏率, 总盈亏率, 状态,
         排序顺序, 创建时间, 完成时间
       )
       SELECT 
         id, 项目名称, 项目代号, 交易类型, 成本价, 当前价, 股数, 仓位,
-        成本金额, 当前金额, 盈亏金额, 项目盈亏率, 自主盈亏率, 状态,
+        成本金额, 当前金额, 盈亏金额, 项目盈亏率, 总盈亏率, 状态,
         ROW_NUMBER() OVER (ORDER BY 创建时间 DESC) - 1 as 排序顺序,
         创建时间, 完成时间
       FROM projects
@@ -159,8 +159,8 @@ export function calculateProjectStats(projectId: number, db: Database.Database) 
   // 计算仓位（当前金额占总投资金额的百分比）
   const 仓位 = 总金额 > 0 ? (当前金额 / 总金额) * 100 : 0;
 
-  // 计算自主盈亏率（盈亏金额占总投资金额的百分比）
-  const 自主盈亏率 = 总金额 > 0 ? (盈亏金额 / 总金额) * 100 : 0;
+  // 计算总盈亏率（盈亏金额占总投资金额的百分比）
+  const 总盈亏率 = 总金额 > 0 ? (盈亏金额 / 总金额) * 100 : 0;
 
   return {
     成本价,
@@ -170,7 +170,7 @@ export function calculateProjectStats(projectId: number, db: Database.Database) 
     当前金额,
     盈亏金额,
     项目盈亏率,
-    自主盈亏率
+    总盈亏率
   };
 }
 
@@ -211,11 +211,11 @@ export function updateAllProjectStats(db: Database.Database) {
     db.prepare(`
       UPDATE projects SET
         成本价 = ?, 股数 = ?, 仓位 = ?, 成本金额 = ?,
-        当前金额 = ?, 盈亏金额 = ?, 项目盈亏率 = ?, 自主盈亏率 = ?
+        当前金额 = ?, 盈亏金额 = ?, 项目盈亏率 = ?, 总盈亏率 = ?
       WHERE id = ?
     `).run(
       stats.成本价, stats.股数, stats.仓位, stats.成本金额,
-      stats.当前金额, stats.盈亏金额, stats.项目盈亏率, stats.自主盈亏率,
+      stats.当前金额, stats.盈亏金额, stats.项目盈亏率, stats.总盈亏率,
       project.id
     );
   }

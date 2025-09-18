@@ -100,7 +100,7 @@ export async function PUT(
         当前金额 = ?,
         盈亏金额 = ?,
         项目盈亏率 = ?,
-        自主盈亏率 = ?
+        总盈亏率 = ?
       WHERE id = ?
     `);
 
@@ -112,7 +112,7 @@ export async function PUT(
       stats.当前金额,
       stats.盈亏金额,
       stats.项目盈亏率,
-      stats.自主盈亏率,
+      stats.总盈亏率,
       id
     );
 

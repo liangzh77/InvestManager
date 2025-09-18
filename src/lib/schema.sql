@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS projects (
   当前金额 REAL,
   盈亏金额 REAL,
   项目盈亏率 REAL,
-  自主盈亏率 REAL,
+  总盈亏率 REAL,
   状态 TEXT CHECK(状态 IN ('进行', '完成')),
   排序顺序 INTEGER DEFAULT 0,
   创建时间 DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -13,7 +13,7 @@ export interface Project {
   当前金额?: number;
   盈亏金额?: number;
   项目盈亏率?: number;
-  自主盈亏率?: number;
+  总盈亏率?: number;
   状态: '进行' | '完成';
   排序顺序?: number;
   创建时间?: string;
