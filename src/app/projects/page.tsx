@@ -396,6 +396,75 @@ export default function ProjectsPage() {
     }
   };
 
+  // 删除项目
+  const deleteProject = async (projectId: number) => {
+    if (!confirm('确定要删除这个项目吗？这将同时删除该项目的所有交易记录。')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/projects/${projectId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // 从本地状态中移除项目
+        setProjects(prev => prev.filter(p => p.id !== projectId));
+        
+        // 从本地状态中移除该项目的交易记录
+        setTransactions(prev => {
+          const newTransactions = { ...prev };
+          delete newTransactions[projectId];
+          return newTransactions;
+        });
+      } else {
+        console.error('删除项目失败:', data.error);
+        alert('删除项目失败，请重试');
+      }
+    } catch (error) {
+      console.error('删除项目失败:', error);
+      alert('删除项目失败，请重试');
+    }
+  };
+
+  // 创建新项目
+  const createProject = async () => {
+    try {
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          项目名称: '新项目',
+          项目代号: '',
+          交易类型: '做多',
+          当前价: 0,
+          状态: '进行'
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // 将新项目添加到本地状态
+        setProjects(prev => [data.data, ...prev]);
+        
+        // 初始化该项目的交易记录为空数组
+        setTransactions(prev => ({
+          ...prev,
+          [data.data.id]: []
+        }));
+      } else {
+        console.error('创建项目失败:', data.error);
+        alert('创建项目失败，请重试');
+      }
+    } catch (error) {
+      console.error('创建项目失败:', error);
+      alert('创建项目失败，请重试');
+    }
+  };
+
   // 数值隐藏/显示功能
   const formatValue = (value: number | null, suffix = '') => {
     if (value === null || value === undefined) return '-';
@@ -638,7 +707,16 @@ export default function ProjectsPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">项目管理</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold">项目管理</h1>
+          <button
+            onClick={createProject}
+            className="w-8 h-8 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors flex items-center justify-center text-lg font-bold"
+            title="添加项目"
+          >
+            +
+          </button>
+        </div>
         <button
           onClick={() => setHideValues(!hideValues)}
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
@@ -677,7 +755,7 @@ export default function ProjectsPage() {
                         <InlineEditText
                           value={project.项目名称}
                           onChange={(value) => updateProject(project.id, '项目名称', value)}
-                          className="font-medium"
+                          className="font-medium text-blue-600"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -702,8 +780,6 @@ export default function ProjectsPage() {
                       <td className="py-2 px-3">
                         {hideValues && !shouldShowInHideMode('当前价') ? (
                           '****'
-                        ) : isNullValue(project.当前价) ? (
-                          '-'
                         ) : (
                           <InlineEditNumber
                             value={project.当前价 || 0}
@@ -734,14 +810,23 @@ export default function ProjectsPage() {
                         {formatValueWithHideMode(project.自主盈亏率, '%', '自主盈亏率')}
                       </td>
                       <td className="py-2 px-3">
-                        <InlineEditSelect
-                          value={project.状态}
-                          options={[
-                            { value: '进行', label: '进行' },
-                            { value: '完成', label: '完成' }
-                          ]}
-                          onChange={(value) => updateProject(project.id, '状态', value)}
-                        />
+                        <div className="flex items-center gap-2">
+                          <InlineEditSelect
+                            value={project.状态}
+                            options={[
+                              { value: '进行', label: '进行' },
+                              { value: '完成', label: '完成' }
+                            ]}
+                            onChange={(value) => updateProject(project.id, '状态', value)}
+                          />
+                          <button
+                            onClick={() => deleteProject(project.id)}
+                            className="w-5 h-5 text-red-500 hover:text-red-700 hover:bg-red-100 rounded flex items-center justify-center transition-colors"
+                            title="删除项目"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   </tbody>
@@ -804,8 +889,17 @@ export default function ProjectsPage() {
                   </DndContext>
                 </div>
               ) : (
-                <div className="text-gray-500 text-center py-8">
-                  暂无交易记录
+                <div className="text-gray-500 text-center py-0">
+                  <div className="flex items-center justify-center gap-2">
+                    <span>暂无交易记录</span>
+                    <button
+                      onClick={() => createTransaction(project.id)}
+                      className="ml-2 w-6 h-6 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors flex items-center justify-center text-sm font-bold"
+                      title="添加交易"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
