@@ -70,6 +70,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [hideValues, setHideValues] = useState(false);
   const [totalAmount, setTotalAmount] = useState(100000); // 总投资金额
+  const [highlightedProjectId, setHighlightedProjectId] = useState<number | null>(null);
 
   // 拖拽传感器
   const sensors = useSensors(
@@ -781,6 +782,14 @@ export default function ProjectsPage() {
     return 'text-gray-600';
   };
 
+  // 距离颜色样式
+  const getDistanceColor = (distance: number) => {
+    if (distance < 0) return 'text-red-600';
+    if (distance > 2) return 'text-black';
+    if (distance >= 1) return 'text-green-600';
+    return 'text-blue-600';
+  };
+
   // 可拖拽的交易行组件
   const DraggableTransactionRow = ({ transaction, projectId }: { transaction: Transaction, projectId: number }) => {
     const {
@@ -858,7 +867,7 @@ export default function ProjectsPage() {
             />
           )}
         </td>
-        <td className="py-2 px-3">
+        <td className={`py-2 px-3 ${transaction.状态 === '完成' ? '' : getDistanceColor(transaction.距离 || 0)}`}>
           {transaction.状态 === '完成' ? (
             <span className="text-gray-400">-</span>
           ) : (
@@ -867,7 +876,7 @@ export default function ProjectsPage() {
               onChange={(value) => updateTransaction(transaction.id, '距离', value)}
               precision={1}
               suffix="%"
-              placeholder="距离"
+              placeholder="0"
             />
           )}
         </td>
@@ -879,7 +888,7 @@ export default function ProjectsPage() {
               value={transaction.交易价 || 0}
               onChange={(value) => updateTransaction(transaction.id, '交易价', value)}
               precision={2}
-              placeholder="交易价"
+              placeholder="0"
             />
           )}
         </td>
@@ -891,7 +900,7 @@ export default function ProjectsPage() {
               value={transaction.股数 || 0}
               onChange={(value) => updateTransaction(transaction.id, '股数', value)}
               precision={0}
-              placeholder="股数"
+              placeholder="0"
             />
           )}
         </td>
@@ -904,7 +913,7 @@ export default function ProjectsPage() {
               onChange={(value) => updateTransaction(transaction.id, '仓位', value)}
               precision={1}
               suffix="%"
-              placeholder="仓位"
+              placeholder="0"
             />
           )}
         </td>
@@ -916,7 +925,7 @@ export default function ProjectsPage() {
               value={transaction.交易金额 || 0}
               onChange={(value) => updateTransaction(transaction.id, '交易金额', value)}
               precision={2}
-              placeholder="交易金额"
+              placeholder="0"
             />
           )}
         </td>
@@ -962,7 +971,11 @@ export default function ProjectsPage() {
       <div
         ref={setNodeRef}
         style={style}
-        className={`${isDragging ? 'opacity-50' : ''} bg-white rounded-lg shadow-md overflow-hidden`}
+        className={`${isDragging ? 'opacity-50' : ''} bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 ${
+          highlightedProjectId === project.id
+            ? 'ring-4 ring-blue-400 ring-opacity-75'
+            : ''
+        }`}
         id={`project-${project.id}`}
       >
         {/* 项目信息表格 */}
@@ -1176,6 +1189,14 @@ export default function ProjectsPage() {
       const el = document.getElementById(`project-${project.id}`);
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // 设置高亮效果
+        setHighlightedProjectId(project.id);
+
+        // 1秒后清除高亮效果
+        setTimeout(() => {
+          setHighlightedProjectId(null);
+        }, 1000);
       }
     };
 

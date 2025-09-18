@@ -20,6 +20,12 @@ export default function Home() {
               项目管理
             </Link>
             <Link
+              href="/plans"
+              className="block w-full px-4 py-2 bg-orange-500 text-white text-center rounded hover:bg-orange-600 transition-colors"
+            >
+              交易计划
+            </Link>
+            <Link
               href="/api-test"
               className="block w-full px-4 py-2 bg-blue-500 text-white text-center rounded hover:bg-blue-600 transition-colors"
             >
@@ -33,6 +39,7 @@ export default function Home() {
           <ul className="space-y-2 text-gray-600">
             <li>• 项目管理 (CRUD)</li>
             <li>• 交易记录管理</li>
+            <li>• 交易计划管理</li>
             <li>• 自动计算盈亏统计</li>
             <li>• 总览和详细统计</li>
             <li>• 仓位和收益率计算</li>
