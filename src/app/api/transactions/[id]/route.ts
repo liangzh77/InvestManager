@@ -102,6 +102,7 @@ export async function PUT(
         股数 = COALESCE(?, 股数),
         仓位 = COALESCE(?, 仓位),
         交易金额 = COALESCE(?, 交易金额),
+        创建时间 = COALESCE(?, 创建时间),
         交易时间 = CASE WHEN ? = '完成' THEN COALESCE(?, CURRENT_TIMESTAMP) ELSE 交易时间 END
       WHERE id = ?
     `);
@@ -118,6 +119,7 @@ export async function PUT(
       data.股数 || null,
       data.仓位 || null,
       data.交易金额 || null,
+      data.创建时间 || null,
       data.状态,
       data.交易时间,
       id

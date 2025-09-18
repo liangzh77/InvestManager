@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { InlineEditText } from '@/components/editable/InlineEditText';
 import { InlineEditNumber } from '@/components/editable/InlineEditNumber';
 import { InlineEditSelect } from '@/components/editable/InlineEditSelect';
+import { InlineEditDate } from '@/components/editable/InlineEditDate';
 import {
   DndContext,
   closestCenter,
@@ -82,8 +83,8 @@ export default function ProjectsPage() {
     try {
       const response = await fetch('/api/overview');
       const data = await response.json();
-      if (data.success && data.data && data.data.length > 0) {
-        const totalAmountValue = data.data[0].总金额;
+      if (data.success && data.data) {
+        const totalAmountValue = data.data.总金额;
         if (totalAmountValue && totalAmountValue > 0) {
           setTotalAmount(totalAmountValue);
           console.log('获取总金额成功:', totalAmountValue, '类型:', typeof totalAmountValue);
@@ -148,6 +149,17 @@ export default function ProjectsPage() {
       setLoading(false);
     };
     loadData();
+
+    // 添加页面焦点事件监听，当用户重新聚焦页面时刷新总金额
+    const handleFocus = () => {
+      fetchTotalAmount();
+    };
+
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
   }, []);
 
   // 更新项目信息
@@ -167,6 +179,12 @@ export default function ProjectsPage() {
         setProjects(prev => prev.map(p =>
           p.id === projectId ? { ...p, [field]: value } : p
         ));
+
+        // 如果更新的是影响计算的字段，刷新总金额
+        const financialFields = ['成本价', '当前价', '股数', '成本金额', '当前金额', '盈亏金额'];
+        if (financialFields.includes(field)) {
+          fetchTotalAmount();
+        }
       } else {
         console.error('更新项目失败:', data.error);
       }
@@ -321,6 +339,9 @@ export default function ProjectsPage() {
 
         // 重新获取项目数据以更新计算字段
         fetchProjects();
+
+        // 重新获取总金额
+        fetchTotalAmount();
       } else {
         console.error('更新交易失败:', data.error);
       }
@@ -350,6 +371,9 @@ export default function ProjectsPage() {
 
         // 重新获取项目数据以更新计算字段
         fetchProjects();
+
+        // 重新获取总金额
+        fetchTotalAmount();
       } else {
         console.error('删除交易失败:', data.error);
         alert('删除失败，请重试');
@@ -731,7 +755,11 @@ export default function ProjectsPage() {
           )}
         </td>
         <td className="py-2 px-3">
-          {new Date(transaction.创建时间).toLocaleDateString()}
+          <InlineEditDate
+            value={transaction.创建时间}
+            onChange={(value) => updateTransaction(transaction.id, '创建时间', value)}
+            placeholder="选择创建时间"
+          />
         </td>
         <td className="py-2 px-3 text-center">
           <button
@@ -775,7 +803,7 @@ export default function ProjectsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b">
+                <tr className="border-b bg-gray-300">
                   <th className="text-left py-2 px-3">项目名称</th>
                   <th className="text-left py-2 px-3">项目代号</th>
                   <th className="text-left py-2 px-3">交易类型</th>
@@ -984,12 +1012,24 @@ export default function ProjectsPage() {
             +
           </button>
         </div>
-        <button
-          onClick={() => setHideValues(!hideValues)}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-        >
-          {hideValues ? '显示' : '隐藏'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              fetchTotalAmount();
+              fetchProjects();
+            }}
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+            title="刷新数据和总金额"
+          >
+            刷新
+          </button>
+          <button
+            onClick={() => setHideValues(!hideValues)}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+          >
+            {hideValues ? '显示' : '隐藏'}
+          </button>
+        </div>
       </div>
 
       <DndContext
