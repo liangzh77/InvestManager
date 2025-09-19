@@ -39,6 +39,25 @@ export default function PlansPage() {
   const [planTransactions, setPlanTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [hideValues, setHideValues] = useState(false);
+
+  // 从 localStorage 加载显示/隐藏状态
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedHideValues = localStorage.getItem('hideValues');
+      if (savedHideValues !== null) {
+        setHideValues(JSON.parse(savedHideValues));
+      }
+    }
+  }, []);
+
+  // 保存显示/隐藏状态到 localStorage
+  const toggleHideValues = () => {
+    const newHideValues = !hideValues;
+    setHideValues(newHideValues);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hideValues', JSON.stringify(newHideValues));
+    }
+  };
   const [totalAmount, setTotalAmount] = useState(100000);
 
   // 获取总金额
@@ -416,9 +435,9 @@ export default function PlansPage() {
 
   // 计算距离颜色
   const getDistanceColor = (distance: number) => {
-    if (distance < 0) return 'text-red-600';
+    if (distance < 0) return 'text-green-600';
     if (distance > 2) return 'text-black';
-    if (distance >= 1) return 'text-green-600';
+    if (distance >= 1) return 'text-red-600';
     return 'text-blue-600';
   };
 
@@ -446,7 +465,7 @@ export default function PlansPage() {
             刷新
           </button>
           <button
-            onClick={() => setHideValues(!hideValues)}
+            onClick={toggleHideValues}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
             {hideValues ? '显示' : '隐藏'}
@@ -505,16 +524,12 @@ export default function PlansPage() {
                       />
                     </td>
                     <td className="py-3 px-4">
-                      {hideValues && !shouldShowInHideMode('当前价') ? (
-                        '****'
-                      ) : (
-                        <InlineEditNumber
-                          value={getCurrentPrice(transaction.项目ID) || 0}
-                          onChange={(value) => updateProjectCurrentPrice(transaction.项目ID, value)}
-                          precision={2}
-                          placeholder="0"
-                        />
-                      )}
+                      <InlineEditNumber
+                        value={getCurrentPrice(transaction.项目ID) || 0}
+                        onChange={(value) => updateProjectCurrentPrice(transaction.项目ID, value)}
+                        precision={2}
+                        placeholder="0"
+                      />
                     </td>
                     <td className="py-3 px-4">
                       <InlineEditSelect

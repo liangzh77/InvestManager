@@ -72,6 +72,25 @@ export default function ProjectsPage() {
   const [totalAmount, setTotalAmount] = useState(100000); // 总投资金额
   const [highlightedProjectId, setHighlightedProjectId] = useState<number | null>(null);
 
+  // 从 localStorage 加载显示/隐藏状态
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedHideValues = localStorage.getItem('hideValues');
+      if (savedHideValues !== null) {
+        setHideValues(JSON.parse(savedHideValues));
+      }
+    }
+  }, []);
+
+  // 保存显示/隐藏状态到 localStorage
+  const toggleHideValues = () => {
+    const newHideValues = !hideValues;
+    setHideValues(newHideValues);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('hideValues', JSON.stringify(newHideValues));
+    }
+  };
+
   // 拖拽传感器
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -788,16 +807,16 @@ export default function ProjectsPage() {
 
   // 盈亏颜色样式
   const getProfitColor = (value: number) => {
-    if (value > 0) return 'text-green-600';
-    if (value < 0) return 'text-red-600';
+    if (value > 0) return 'text-red-600';
+    if (value < 0) return 'text-green-600';
     return 'text-gray-600';
   };
 
   // 距离颜色样式
   const getDistanceColor = (distance: number) => {
-    if (distance < 0) return 'text-red-600';
+    if (distance < 0) return 'text-green-600';
     if (distance > 2) return 'text-black';
-    if (distance >= 1) return 'text-green-600';
+    if (distance >= 1) return 'text-red-600';
     return 'text-blue-600';
   };
 
@@ -1211,19 +1230,58 @@ export default function ProjectsPage() {
       }
     };
 
+    // 获取盈亏率颜色
+    const getProfitColor = (value: number) => {
+      if (value > 0) return 'text-red-600';
+      if (value < 0) return 'text-green-600';
+      return 'text-gray-600';
+    };
+
+    // 获取状态点颜色
+    const getStatusColor = (status: string) => {
+      return status === '进行' ? 'bg-green-500' : 'bg-blue-500';
+    };
+
+    // 格式化百分比数值（去掉%，根据大小调整小数位）
+    const formatPercentage = (value: number) => {
+      const absValue = Math.abs(value);
+      if (absValue >= 10) {
+        return value.toFixed(0);
+      } else {
+        return value.toFixed(1);
+      }
+    };
+
     return (
       <div
         ref={setNodeRef}
         style={style}
-        className={`flex items-center justify-between px-3 py-2 rounded cursor-pointer select-none ${isDragging ? 'opacity-50' : 'hover:bg-gray-100'}`}
+        className={`flex items-center px-3 py-2 rounded cursor-pointer select-none ${isDragging ? 'opacity-50' : 'hover:bg-gray-100'}`}
         onClick={scrollToProject}
-        title={project.项目名称}
+        title={`${project.项目名称} - 项目盈亏率: ${project.项目盈亏率?.toFixed(1)}%, 总盈亏率: ${project.总盈亏率?.toFixed(1)}%`}
       >
-        <span className="truncate text-sm">{project.项目名称}</span>
+        {/* 项目名称 - 占据剩余空间 */}
+        <span className="truncate text-sm flex-1 pr-2">{project.项目名称}</span>
+
+        {/* 右侧信息区域 - 固定宽度对齐 */}
+        <div className="flex items-center gap-1 text-xs w-16 justify-end">
+          <span className={`${getProfitColor(project.项目盈亏率 || 0)} w-6 text-right`}>
+            {formatPercentage(project.项目盈亏率 || 0)}
+          </span>
+          <span className={`${getProfitColor(project.总盈亏率 || 0)} w-6 text-right`}>
+            {formatPercentage(project.总盈亏率 || 0)}
+          </span>
+          <div
+            className={`w-2 h-2 rounded-full ${getStatusColor(project.状态)} ml-1`}
+            title={project.状态}
+          ></div>
+        </div>
+
+        {/* 拖拽按钮 */}
         <button
           {...attributes}
           {...listeners}
-          className="ml-2 text-gray-400 hover:text-gray-600 p-1"
+          className="ml-2 text-gray-400 hover:text-gray-600 p-1 shrink-0"
           onClick={(e) => e.stopPropagation()}
           title="拖拽排序"
         >
@@ -1267,7 +1325,7 @@ export default function ProjectsPage() {
             刷新
           </button>
           <button
-            onClick={() => setHideValues(!hideValues)}
+            onClick={toggleHideValues}
             className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
           >
             {hideValues ? '显示' : '隐藏'}
