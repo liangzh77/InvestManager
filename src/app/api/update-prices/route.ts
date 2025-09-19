@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         const price = await getStockPrice(symbol);
 
         if (price === null) {
+          console.log(`[股价更新失败] ${project.项目名称} (${symbol}): 无法获取股价***************************************************`);
           results[project.项目名称] = { success: false, error: '无法获取股价' };
           continue;
         }
@@ -55,6 +56,9 @@ export async function POST(request: NextRequest) {
           SET 当前价 = ?
           WHERE id = ?
         `, [price, project.id]);
+
+        // 打印股价到终端用于调试
+        console.log(`[股价更新] ${project.项目名称} (${symbol}): ${price}`);
 
         results[project.项目名称] = { success: true, price };
 
