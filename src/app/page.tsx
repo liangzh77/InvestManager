@@ -14,6 +14,12 @@ export default function Home() {
 
           <div className="space-y-2">
             <Link
+              href="/dashboard"
+              className="block w-full px-4 py-2 bg-purple-500 text-white text-center rounded hover:bg-purple-600 transition-colors"
+            >
+              投资总览
+            </Link>
+            <Link
               href="/projects"
               className="block w-full px-4 py-2 bg-green-500 text-white text-center rounded hover:bg-green-600 transition-colors"
             >

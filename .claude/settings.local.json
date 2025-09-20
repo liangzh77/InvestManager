@@ -24,7 +24,9 @@
       "Bash(start http://localhost:3001/plans)",
       "Bash(start http://localhost:3001/test-error)",
       "Bash(start http://localhost:3002/test-error)",
-      "Bash(start http://localhost:3002/plans)"
+      "Bash(start http://localhost:3002/plans)",
+      "Bash(start http://localhost:3003)",
+      "Bash(start http://localhost:3003/dashboard)"
     ],
     "deny": [],
     "ask": []
