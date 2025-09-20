@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, calculateTransactionDistance, calculateProjectStats } from '@/lib/db';
 import { Transaction } from '@/lib/types';
+import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 
 // GET - 获取所有交易
 export async function GET(request: NextRequest) {
@@ -24,7 +25,9 @@ export async function GET(request: NextRequest) {
       data: transactions
     });
   } catch (error) {
+    const errorMsg = `获取交易列表失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('获取交易列表错误:', error);
+    ServerErrorLogger.addError(errorMsg, '交易API');
     return NextResponse.json(
       { success: false, error: '获取交易列表失败' },
       { status: 500 }
@@ -39,6 +42,8 @@ export async function POST(request: NextRequest) {
 
     // 验证必填字段
     if (!data.交易类型 || !data.状态) {
+      const errorMsg = `创建交易验证失败: 缺少必填字段 - 交易类型: ${data.交易类型}, 状态: ${data.状态}`;
+      ServerErrorLogger.addError(errorMsg, '交易API');
       return NextResponse.json(
         { success: false, error: '交易类型和状态为必填字段' },
         { status: 400 }
@@ -59,6 +64,8 @@ export async function POST(request: NextRequest) {
           data.距离 = calculateTransactionDistance(data, project.当前价);
         }
       } else {
+        const errorMsg = `创建交易失败: 指定的项目ID ${data.项目ID} 不存在`;
+        ServerErrorLogger.addError(errorMsg, '交易API');
         return NextResponse.json(
           { success: false, error: '指定的项目不存在' },
           { status: 400 }
@@ -112,7 +119,9 @@ export async function POST(request: NextRequest) {
       data: transaction
     });
   } catch (error) {
+    const errorMsg = `创建交易失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('创建交易错误:', error);
+    ServerErrorLogger.addError(errorMsg, '交易API');
     return NextResponse.json(
       { success: false, error: '创建交易失败' },
       { status: 500 }

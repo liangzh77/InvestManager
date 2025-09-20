@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/db';
+import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 
 // GET - 获取总览统计
 export async function GET() {
@@ -82,7 +83,9 @@ export async function GET() {
       data: overview
     });
   } catch (error) {
+    const errorMsg = `获取总览统计失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('获取总览统计错误:', error);
+    ServerErrorLogger.addError(errorMsg, '总览API');
     return NextResponse.json(
       { success: false, error: '获取总览统计失败' },
       { status: 500 }
@@ -96,7 +99,9 @@ export async function POST() {
     // 直接调用GET方法重新计算
     return await GET();
   } catch (error) {
+    const errorMsg = `手动更新总览统计失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('更新总览统计错误:', error);
+    ServerErrorLogger.addError(errorMsg, '总览API');
     return NextResponse.json(
       { success: false, error: '更新总览统计失败' },
       { status: 500 }
@@ -110,6 +115,8 @@ export async function PUT(request: NextRequest) {
     const { 总金额 } = await request.json();
 
     if (!总金额 || isNaN(总金额) || 总金额 <= 0) {
+      const errorMsg = `更新总金额验证失败: 总金额 ${总金额} 不是有效的正数`;
+      ServerErrorLogger.addError(errorMsg, '总览API');
       return NextResponse.json(
         { success: false, error: '总金额必须是有效的正数' },
         { status: 400 }
@@ -165,7 +172,9 @@ export async function PUT(request: NextRequest) {
       }
     });
   } catch (error) {
+    const errorMsg = `更新总金额失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('更新总金额错误:', error);
+    ServerErrorLogger.addError(errorMsg, '总览API');
     return NextResponse.json(
       { success: false, error: '更新总金额失败' },
       { status: 500 }

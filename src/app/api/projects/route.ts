@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, calculateProjectStats } from '@/lib/db';
 import { Project } from '@/lib/types';
+import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 
 // GET - 获取所有项目
 export async function GET() {
@@ -13,7 +14,9 @@ export async function GET() {
       data: projects
     });
   } catch (error) {
+    const errorMsg = `获取项目列表失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('获取项目列表错误:', error);
+    ServerErrorLogger.addError(errorMsg, '项目API');
     return NextResponse.json(
       { success: false, error: '获取项目列表失败' },
       { status: 500 }
@@ -29,6 +32,8 @@ export async function POST(request: NextRequest) {
 
     // 验证必填字段
     if (!data.项目名称 || !data.交易类型 || !data.状态) {
+      const errorMsg = `创建项目验证失败: 缺少必填字段 - 项目名称: ${data.项目名称}, 交易类型: ${data.交易类型}, 状态: ${data.状态}`;
+      ServerErrorLogger.addError(errorMsg, '项目API');
       return NextResponse.json(
         { success: false, error: '项目名称、交易类型和状态为必填字段' },
         { status: 400 }
@@ -64,7 +69,9 @@ export async function POST(request: NextRequest) {
       data: project
     });
   } catch (error) {
+    const errorMsg = `创建项目失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('创建项目错误:', error);
+    ServerErrorLogger.addError(errorMsg, '项目API');
     return NextResponse.json(
       { success: false, error: '创建项目失败' },
       { status: 500 }

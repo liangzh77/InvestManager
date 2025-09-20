@@ -6,6 +6,10 @@ import { InlineEditText } from '@/components/editable/InlineEditText';
 import { InlineEditNumber } from '@/components/editable/InlineEditNumber';
 import { InlineEditSelect } from '@/components/editable/InlineEditSelect';
 import { InlineEditDate } from '@/components/editable/InlineEditDate';
+import ErrorLogViewer from '@/components/ErrorLogViewer';
+import ErrorLogger from '@/utils/errorLogger';
+import { testErrorLogger } from '@/utils/testErrorLogger';
+import { ErrorSync } from '@/utils/errorSync';
 import {
   DndContext,
   closestCenter,
@@ -72,6 +76,8 @@ export default function ProjectsPage() {
   const [totalAmount, setTotalAmount] = useState(100000); // 总投资金额
   const [highlightedProjectId, setHighlightedProjectId] = useState<number | null>(null);
 
+  const errorLogger = ErrorLogger.getInstance();
+
   // 从 localStorage 加载显示/隐藏状态
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -118,7 +124,9 @@ export default function ProjectsPage() {
         setTotalAmount(100000);
       }
     } catch (error) {
-      console.error('获取总金额失败:', error, '使用默认值 100000');
+      const errorMsg = `获取总金额失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg, '使用默认值 100000');
+      errorLogger.addError(errorMsg);
       setTotalAmount(100000);
     }
   };
@@ -140,7 +148,9 @@ export default function ProjectsPage() {
         }
       }
     } catch (error) {
-      console.error('获取项目列表失败:', error);
+      const errorMsg = `获取项目列表失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
     }
   };
 
@@ -157,7 +167,9 @@ export default function ProjectsPage() {
         }));
       }
     } catch (error) {
-      console.error(`获取项目 ${projectId} 的交易记录失败:`, error);
+      const errorMsg = `获取项目 ${projectId} 的交易记录失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
     }
   };
 
@@ -171,6 +183,9 @@ export default function ProjectsPage() {
     };
     loadData();
 
+    // 启动服务端错误同步
+    ErrorSync.startPolling(3000); // 每3秒检查一次服务端错误
+
     // 添加页面焦点事件监听，当用户重新聚焦页面时刷新总金额
     const handleFocus = () => {
       fetchTotalAmount();
@@ -180,6 +195,7 @@ export default function ProjectsPage() {
 
     return () => {
       window.removeEventListener('focus', handleFocus);
+      ErrorSync.stopPolling(); // 组件卸载时停止轮询
     };
   }, []);
 
@@ -194,7 +210,9 @@ export default function ProjectsPage() {
           console.log('股价更新结果:', priceUpdateJson.data);
         }
       } catch (error) {
-        console.error('更新股价失败:', error);
+        const errorMsg = `更新股价失败: ${error instanceof Error ? error.message : String(error)}`;
+        console.error(errorMsg);
+        errorLogger.addError(errorMsg);
       }
 
       // 1) 获取总金额
@@ -293,7 +311,9 @@ export default function ProjectsPage() {
         };
       }));
     } catch (err) {
-      console.error('刷新并联动重算失败:', err);
+      const errorMsg = `刷新并联动重算失败: ${err instanceof Error ? err.message : String(err)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
       // 兜底：保留原有简易刷新
       fetchTotalAmount();
       fetchProjects();
@@ -350,10 +370,14 @@ export default function ProjectsPage() {
           fetchTotalAmount();
         }
       } else {
-        console.error('更新项目失败:', data.error);
+        const errorMsg = `更新项目失败: ${data.error}`;
+        console.error(errorMsg);
+        errorLogger.addError(errorMsg);
       }
     } catch (error) {
-      console.error('更新项目失败:', error);
+      const errorMsg = `更新项目失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
     }
   };
 
@@ -507,10 +531,14 @@ export default function ProjectsPage() {
         // 重新获取总金额
         fetchTotalAmount();
       } else {
-        console.error('更新交易失败:', data.error);
+        const errorMsg = `更新交易失败: ${data.error}`;
+        console.error(errorMsg);
+        errorLogger.addError(errorMsg);
       }
     } catch (error) {
-      console.error('更新交易失败:', error);
+      const errorMsg = `更新交易失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
     }
   };
 
@@ -1317,6 +1345,9 @@ export default function ProjectsPage() {
           </button>
         </div>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <ErrorLogViewer />
+          </div>
           <button
             onClick={refreshDataAndRecalculate}
             className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"

@@ -5,6 +5,10 @@ import { InlineEditText } from '@/components/editable/InlineEditText';
 import { InlineEditNumber } from '@/components/editable/InlineEditNumber';
 import { InlineEditSelect } from '@/components/editable/InlineEditSelect';
 import { InlineEditDate } from '@/components/editable/InlineEditDate';
+import ErrorLogViewer from '@/components/ErrorLogViewer';
+import ErrorLogger from '@/utils/errorLogger';
+import { testErrorLogger } from '@/utils/testErrorLogger';
+import { ErrorSync } from '@/utils/errorSync';
 
 interface Project {
   id: number;
@@ -39,6 +43,8 @@ export default function PlansPage() {
   const [planTransactions, setPlanTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [hideValues, setHideValues] = useState(false);
+
+  const errorLogger = ErrorLogger.getInstance();
 
   // 从 localStorage 加载显示/隐藏状态
   useEffect(() => {
@@ -76,7 +82,9 @@ export default function PlansPage() {
         setTotalAmount(100000);
       }
     } catch (error) {
-      console.error('获取总金额失败:', error);
+      const errorMsg = `获取总金额失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
       setTotalAmount(100000);
     }
   };
@@ -94,7 +102,9 @@ export default function PlansPage() {
         setProjects(sortedProjects);
       }
     } catch (error) {
-      console.error('获取项目列表失败:', error);
+      const errorMsg = `获取项目列表失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
     }
   };
 
@@ -109,7 +119,9 @@ export default function PlansPage() {
         setPlanTransactions(plans);
       }
     } catch (error) {
-      console.error('获取计划交易失败:', error);
+      const errorMsg = `获取计划交易失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
     }
   };
 
@@ -169,6 +181,13 @@ export default function PlansPage() {
       setLoading(false);
     };
     loadData();
+
+    // 启动服务端错误同步
+    ErrorSync.startPolling(3000); // 每3秒检查一次服务端错误
+
+    return () => {
+      ErrorSync.stopPolling(); // 组件卸载时停止轮询
+    };
   }, []);
 
   // 更新交易信息
@@ -255,10 +274,14 @@ export default function PlansPage() {
           t.id === transactionId ? { ...t, ...updateData } : t
         ));
       } else {
-        console.error('更新交易失败:', data.error);
+        const errorMsg = `更新交易失败: ${data.error}`;
+        console.error(errorMsg);
+        errorLogger.addError(errorMsg);
       }
     } catch (error) {
-      console.error('更新交易失败:', error);
+      const errorMsg = `更新交易失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
     }
   };
 
@@ -335,7 +358,9 @@ export default function PlansPage() {
         console.log('股价更新结果:', priceUpdateJson.data);
       }
     } catch (error) {
-      console.error('更新股价失败:', error);
+      const errorMsg = `更新股价失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      errorLogger.addError(errorMsg);
     }
 
     // 1. 获取总金额
@@ -457,6 +482,9 @@ export default function PlansPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">交易计划</h1>
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <ErrorLogViewer />
+          </div>
           <button
             onClick={refreshData}
             className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
