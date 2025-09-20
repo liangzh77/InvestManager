@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react'
 
 interface OverviewData {
   总金额: number
@@ -25,27 +25,52 @@ interface OverviewData {
   }
 }
 
+interface ProjectData {
+  id: number
+  项目名称: string
+  盈亏金额: number
+  项目盈亏率: number
+  总盈亏率: number
+  状态: string
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<OverviewData | null>(null)
+  const [projects, setProjects] = useState<ProjectData[]>([])
   const [loading, setLoading] = useState(true)
   const [hideValues, setHideValues] = useState(false)
   const [error, setError] = useState('')
+  const [sortKey, setSortKey] = useState<keyof ProjectData | null>(null)
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
 
   const fetchOverviewData = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/overview')
-      const result = await response.json()
+      const [overviewResponse, projectsResponse] = await Promise.all([
+        fetch('/api/overview'),
+        fetch('/api/projects')
+      ])
 
-      if (result.success) {
-        setData(result.data)
+      const [overviewResult, projectsResult] = await Promise.all([
+        overviewResponse.json(),
+        projectsResponse.json()
+      ])
+
+      if (overviewResult.success) {
+        setData(overviewResult.data)
         setError('')
       } else {
-        setError(result.error || '获取数据失败')
+        setError(overviewResult.error || '获取总览数据失败')
+      }
+
+      if (projectsResult.success) {
+        setProjects(projectsResult.data || [])
+      } else {
+        console.error('获取项目数据失败:', projectsResult.error)
       }
     } catch (err) {
       setError('网络错误')
-      console.error('获取总览数据失败:', err)
+      console.error('获取数据失败:', err)
     } finally {
       setLoading(false)
     }
@@ -68,11 +93,40 @@ export default function Dashboard() {
     localStorage.setItem('dashboard-hide-values', JSON.stringify(newHideState))
   }
 
+  // 排序功能
+  const handleSort = (key: keyof ProjectData) => {
+    if (sortKey === key) {
+      // 同一列再次点击，切换排序方向
+      setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc')
+    } else {
+      // 新列，默认降序
+      setSortKey(key)
+      setSortDirection('desc')
+    }
+  }
+
+  // 排序后的项目列表
+  const sortedProjects = [...projects].sort((a, b) => {
+    if (!sortKey) return 0
+
+    const aValue = a[sortKey]
+    const bValue = b[sortKey]
+
+    let comparison = 0
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      comparison = aValue - bValue
+    } else {
+      comparison = String(aValue).localeCompare(String(bValue))
+    }
+
+    return sortDirection === 'desc' ? -comparison : comparison
+  })
+
   const formatNumber = (value: number) => {
     if (hideValues) return '****'
     return value.toLocaleString('zh-CN', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     })
   }
 
@@ -258,6 +312,125 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 项目列表 */}
+      <Card>
+        <CardHeader>
+          <CardTitle>项目详情</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {projects.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th
+                      className="text-left p-4 cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => handleSort('项目名称')}
+                    >
+                      <div className="flex items-center gap-2">
+                        项目名称
+                        {sortKey === '项目名称' && (
+                          sortDirection === 'desc' ?
+                          <ChevronDown className="h-4 w-4" /> :
+                          <ChevronUp className="h-4 w-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-left p-4 cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => handleSort('盈亏金额')}
+                    >
+                      <div className="flex items-center gap-2">
+                        盈亏金额
+                        {sortKey === '盈亏金额' && (
+                          sortDirection === 'desc' ?
+                          <ChevronDown className="h-4 w-4" /> :
+                          <ChevronUp className="h-4 w-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-left p-4 cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => handleSort('项目盈亏率')}
+                    >
+                      <div className="flex items-center gap-2">
+                        项目盈亏率
+                        {sortKey === '项目盈亏率' && (
+                          sortDirection === 'desc' ?
+                          <ChevronDown className="h-4 w-4" /> :
+                          <ChevronUp className="h-4 w-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-left p-4 cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => handleSort('总盈亏率')}
+                    >
+                      <div className="flex items-center gap-2">
+                        总盈亏率
+                        {sortKey === '总盈亏率' && (
+                          sortDirection === 'desc' ?
+                          <ChevronDown className="h-4 w-4" /> :
+                          <ChevronUp className="h-4 w-4" />
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="text-left p-4 cursor-pointer hover:bg-muted transition-colors"
+                      onClick={() => handleSort('状态')}
+                    >
+                      <div className="flex items-center gap-2">
+                        状态
+                        {sortKey === '状态' && (
+                          sortDirection === 'desc' ?
+                          <ChevronDown className="h-4 w-4" /> :
+                          <ChevronUp className="h-4 w-4" />
+                        )}
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedProjects.map((project) => (
+                    <tr key={project.id} className="border-b hover:bg-muted/25 transition-colors">
+                      <td className="p-4 font-medium">{project.项目名称}</td>
+                      <td className={`p-4 font-medium ${
+                        project.盈亏金额 >= 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {formatNumber(project.盈亏金额)}
+                      </td>
+                      <td className={`p-4 ${
+                        project.项目盈亏率 >= 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {project.项目盈亏率.toFixed(1)}%
+                      </td>
+                      <td className={`p-4 ${
+                        project.总盈亏率 >= 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        {project.总盈亏率.toFixed(1)}%
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          project.状态 === '进行'
+                            ? 'bg-blue-100 text-blue-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}>
+                          {project.状态}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-8 text-center text-muted-foreground">
+              暂无项目数据
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 更新时间和刷新按钮 */}
       <Card>
