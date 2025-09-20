@@ -1,24 +1,14 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import ErrorLogger from '@/utils/errorLogger';
-import { ErrorSync } from '@/utils/errorSync';
-import ErrorLogViewer from '@/components/ErrorLogViewer';
+import React from 'react';
+import PageErrorLogViewer from '@/components/PageErrorLogViewer';
+import { getPageErrorLogger } from '@/utils/pageErrorLogger';
 
 export default function TestErrorPage() {
-  const errorLogger = ErrorLogger.getInstance();
-
-  useEffect(() => {
-    // 启动服务端错误同步
-    ErrorSync.startPolling(3000);
-
-    return () => {
-      ErrorSync.stopPolling();
-    };
-  }, []);
+  const pageErrorLogger = getPageErrorLogger('test-error');
 
   const testClientError = () => {
-    errorLogger.addError('客户端测试错误: 这是一个测试用的客户端错误消息');
+    pageErrorLogger.addError('客户端测试错误: 这是一个测试用的客户端错误消息');
   };
 
   const testServerError = async () => {
@@ -66,8 +56,8 @@ export default function TestErrorPage() {
   };
 
   const checkServerErrors = async () => {
-    await ErrorSync.syncServerErrors();
-    console.log('已同步服务端错误到客户端');
+    pageErrorLogger.addError('手动测试错误: 这是一个手动添加的测试错误');
+    console.log('已添加测试错误到页面日志');
   };
 
   return (
@@ -75,7 +65,7 @@ export default function TestErrorPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">错误日志测试页面</h1>
         <div className="relative">
-          <ErrorLogViewer />
+          <PageErrorLogViewer pageId="test-error" />
         </div>
       </div>
 
@@ -112,7 +102,7 @@ export default function TestErrorPage() {
           onClick={checkServerErrors}
           className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors mr-4"
         >
-          同步服务端错误
+          添加测试错误
         </button>
       </div>
 
@@ -123,7 +113,7 @@ export default function TestErrorPage() {
           <li><strong>测试服务端错误</strong>：调用不存在的API端点</li>
           <li><strong>测试API验证错误</strong>：提交无效数据触发服务端验证错误</li>
           <li><strong>触发股价更新</strong>：调用股价更新API，可能会产生股价获取失败的错误</li>
-          <li><strong>同步服务端错误</strong>：手动同步服务端错误到客户端日志</li>
+          <li><strong>添加测试错误</strong>：手动添加一个测试错误到页面日志</li>
         </ul>
 
         <p className="mt-4 text-gray-600">

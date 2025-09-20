@@ -6,10 +6,8 @@ import { InlineEditText } from '@/components/editable/InlineEditText';
 import { InlineEditNumber } from '@/components/editable/InlineEditNumber';
 import { InlineEditSelect } from '@/components/editable/InlineEditSelect';
 import { InlineEditDate } from '@/components/editable/InlineEditDate';
-import ErrorLogViewer from '@/components/ErrorLogViewer';
-import ErrorLogger from '@/utils/errorLogger';
-import { testErrorLogger } from '@/utils/testErrorLogger';
-import { ErrorSync } from '@/utils/errorSync';
+import PageErrorLogViewer from '@/components/PageErrorLogViewer';
+import { getPageErrorLogger } from '@/utils/pageErrorLogger';
 import {
   DndContext,
   closestCenter,
@@ -76,7 +74,7 @@ export default function ProjectsPage() {
   const [totalAmount, setTotalAmount] = useState(100000); // 总投资金额
   const [highlightedProjectId, setHighlightedProjectId] = useState<number | null>(null);
 
-  const errorLogger = ErrorLogger.getInstance();
+  const pageErrorLogger = getPageErrorLogger('projects');
 
   // 从 localStorage 加载显示/隐藏状态
   useEffect(() => {
@@ -126,7 +124,7 @@ export default function ProjectsPage() {
     } catch (error) {
       const errorMsg = `获取总金额失败: ${error instanceof Error ? error.message : String(error)}`;
       console.error(errorMsg, '使用默认值 100000');
-      errorLogger.addError(errorMsg);
+      pageErrorLogger.addError(errorMsg);
       setTotalAmount(100000);
     }
   };
@@ -150,7 +148,7 @@ export default function ProjectsPage() {
     } catch (error) {
       const errorMsg = `获取项目列表失败: ${error instanceof Error ? error.message : String(error)}`;
       console.error(errorMsg);
-      errorLogger.addError(errorMsg);
+      pageErrorLogger.addError(errorMsg);
     }
   };
 
@@ -169,7 +167,7 @@ export default function ProjectsPage() {
     } catch (error) {
       const errorMsg = `获取项目 ${projectId} 的交易记录失败: ${error instanceof Error ? error.message : String(error)}`;
       console.error(errorMsg);
-      errorLogger.addError(errorMsg);
+      pageErrorLogger.addError(errorMsg);
     }
   };
 
@@ -183,9 +181,6 @@ export default function ProjectsPage() {
     };
     loadData();
 
-    // 启动服务端错误同步
-    ErrorSync.startPolling(3000); // 每3秒检查一次服务端错误
-
     // 添加页面焦点事件监听，当用户重新聚焦页面时刷新总金额
     const handleFocus = () => {
       fetchTotalAmount();
@@ -195,7 +190,6 @@ export default function ProjectsPage() {
 
     return () => {
       window.removeEventListener('focus', handleFocus);
-      ErrorSync.stopPolling(); // 组件卸载时停止轮询
     };
   }, []);
 
@@ -208,11 +202,23 @@ export default function ProjectsPage() {
         const priceUpdateJson = await priceUpdateRes.json();
         if (priceUpdateJson.success) {
           console.log('股价更新结果:', priceUpdateJson.data);
+
+          // 检查具体的失败项目并记录错误
+          if (priceUpdateJson.data?.results) {
+            const results = priceUpdateJson.data.results;
+            Object.keys(results).forEach(projectName => {
+              const result = results[projectName];
+              if (!result.success) {
+                const errorMsg = `股价更新失败: ${projectName} - ${result.error}`;
+                pageErrorLogger.addError(errorMsg);
+              }
+            });
+          }
         }
       } catch (error) {
         const errorMsg = `更新股价失败: ${error instanceof Error ? error.message : String(error)}`;
         console.error(errorMsg);
-        errorLogger.addError(errorMsg);
+        pageErrorLogger.addError(errorMsg);
       }
 
       // 1) 获取总金额
@@ -313,7 +319,7 @@ export default function ProjectsPage() {
     } catch (err) {
       const errorMsg = `刷新并联动重算失败: ${err instanceof Error ? err.message : String(err)}`;
       console.error(errorMsg);
-      errorLogger.addError(errorMsg);
+      pageErrorLogger.addError(errorMsg);
       // 兜底：保留原有简易刷新
       fetchTotalAmount();
       fetchProjects();
@@ -372,12 +378,12 @@ export default function ProjectsPage() {
       } else {
         const errorMsg = `更新项目失败: ${data.error}`;
         console.error(errorMsg);
-        errorLogger.addError(errorMsg);
+        pageErrorLogger.addError(errorMsg);
       }
     } catch (error) {
       const errorMsg = `更新项目失败: ${error instanceof Error ? error.message : String(error)}`;
       console.error(errorMsg);
-      errorLogger.addError(errorMsg);
+      pageErrorLogger.addError(errorMsg);
     }
   };
 
@@ -533,12 +539,12 @@ export default function ProjectsPage() {
       } else {
         const errorMsg = `更新交易失败: ${data.error}`;
         console.error(errorMsg);
-        errorLogger.addError(errorMsg);
+        pageErrorLogger.addError(errorMsg);
       }
     } catch (error) {
       const errorMsg = `更新交易失败: ${error instanceof Error ? error.message : String(error)}`;
       console.error(errorMsg);
-      errorLogger.addError(errorMsg);
+      pageErrorLogger.addError(errorMsg);
     }
   };
 
@@ -1346,7 +1352,7 @@ export default function ProjectsPage() {
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
-            <ErrorLogViewer />
+            <PageErrorLogViewer pageId="projects" />
           </div>
           <button
             onClick={refreshDataAndRecalculate}

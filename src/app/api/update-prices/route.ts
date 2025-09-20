@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import path from 'path';
-import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 
 const DB_PATH = path.join(process.cwd(), 'data', 'investment.db');
 
@@ -37,8 +36,7 @@ export async function POST(request: NextRequest) {
       const symbol = project.项目代号;
 
       if (!symbol) {
-        const errorMsg = `项目 ${project.项目名称} 缺少股票代码`;
-        ServerErrorLogger.addError(errorMsg, '股价更新');
+        console.log(`[股价更新失败] 项目 ${project.项目名称} 缺少股票代码`);
         results[project.项目名称] = { success: false, error: '缺少股票代码' };
         continue;
       }
@@ -48,9 +46,7 @@ export async function POST(request: NextRequest) {
         const price = await getStockPrice(symbol);
 
         if (price === null) {
-          const errorMsg = `获取股价失败: ${project.项目名称} (${symbol}) - 无法从API获取有效股价数据`;
           console.log(`[股价更新失败] ${project.项目名称} (${symbol}): 无法获取股价`);
-          ServerErrorLogger.addError(errorMsg, '股价更新');
           results[project.项目名称] = { success: false, error: '无法获取股价' };
           continue;
         }
@@ -68,9 +64,7 @@ export async function POST(request: NextRequest) {
         results[project.项目名称] = { success: true, price };
 
       } catch (error) {
-        const errorMsg = `更新项目 ${project.项目名称} (${symbol}) 价格失败: ${error instanceof Error ? error.message : String(error)}`;
         console.error(`更新项目 ${project.项目名称} 价格失败:`, error);
-        ServerErrorLogger.addError(errorMsg, '股价更新');
         results[project.项目名称] = { success: false, error: '更新失败' };
       }
     }
@@ -84,9 +78,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    const errorMsg = `批量更新股价失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('更新价格失败:', error);
-    ServerErrorLogger.addError(errorMsg, '股价更新');
     return NextResponse.json({ success: false, error: '服务器错误' }, { status: 500 });
   } finally {
     if (db) {
@@ -171,9 +163,7 @@ async function getStockPrice(symbol: string): Promise<number | null> {
 
     return currentPrice;
   } catch (error) {
-    const errorMsg = `获取股价API调用失败 ${symbol}: ${error instanceof Error ? error.message : String(error)}`;
     console.error(`获取股价失败 ${symbol}:`, error);
-    ServerErrorLogger.addError(errorMsg, '股价API');
     return null;
   }
 }

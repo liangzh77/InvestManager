@@ -22,7 +22,9 @@
       "WebSearch",
       "Bash(start http://localhost:3001/projects)",
       "Bash(start http://localhost:3001/plans)",
-      "Bash(start http://localhost:3001/test-error)"
+      "Bash(start http://localhost:3001/test-error)",
+      "Bash(start http://localhost:3002/test-error)",
+      "Bash(start http://localhost:3002/plans)"
     ],
     "deny": [],
     "ask": []
