@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/db';
+import { getDatabase } from '@/lib/db-vercel';
 
 // POST - 更新项目排序
 export async function POST(request: NextRequest) {

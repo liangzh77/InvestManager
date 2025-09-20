@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/db';
+import { getDatabase } from '@/lib/db-vercel';
 import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 
 // GET - 获取总览统计
@@ -162,7 +162,7 @@ export async function PUT(request: NextRequest) {
       success: true,
       message: '总金额更新成功',
       data: {
-        ...updatedOverview,
+        ...(updatedOverview as object),
         项目统计: {
           项目总数: projectStats.项目总数,
           总成本金额: projectStats.总成本金额,

@@ -29,7 +29,7 @@ export function InlineEditSelect<T = string>({
   }, [editing]);
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedOption = options.find(opt => opt.value.toString() === e.target.value);
+    const selectedOption = options.find(opt => String(opt.value) === e.target.value);
     if (selectedOption) {
       onChange(selectedOption.value);
     }

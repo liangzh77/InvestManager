@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, calculateTransactionDistance, calculateProjectStats } from '@/lib/db';
+import { getDatabase, calculateTransactionDistance, calculateProjectStats } from '@/lib/db-vercel';
 import { Transaction } from '@/lib/types';
 import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 

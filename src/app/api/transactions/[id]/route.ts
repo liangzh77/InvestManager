@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, calculateTransactionDistance, calculateProjectStats } from '@/lib/db';
+import { getDatabase, calculateTransactionDistance, calculateProjectStats } from '@/lib/db-vercel';
 import { Transaction } from '@/lib/types';
 
 // GET - 获取单个交易
@@ -151,7 +151,7 @@ export async function PUT(
       console.log('重新计算项目统计，影响的项目:', Array.from(projectsToUpdate));
 
       // 重新计算所有相关项目的统计数据
-      for (const projectId of projectsToUpdate) {
+      for (const projectId of Array.from(projectsToUpdate)) {
         const stats = calculateProjectStats(projectId, db);
         console.log(`项目 ${projectId} 统计更新:`, stats);
 

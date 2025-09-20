@@ -33,6 +33,7 @@ export interface Transaction {
   股数?: number;
   仓位?: number;
   交易金额?: number;
+  排序顺序?: number;
   创建时间?: string;
   交易时间?: string;
 }

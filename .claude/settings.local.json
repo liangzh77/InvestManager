@@ -26,7 +26,8 @@
       "Bash(start http://localhost:3002/test-error)",
       "Bash(start http://localhost:3002/plans)",
       "Bash(start http://localhost:3003)",
-      "Bash(start http://localhost:3003/dashboard)"
+      "Bash(start http://localhost:3003/dashboard)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

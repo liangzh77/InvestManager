@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, calculateProjectStats } from '@/lib/db';
+import { getDatabase, calculateProjectStats } from '@/lib/db-vercel';
 import { Project } from '@/lib/types';
 
 // GET - 获取单个项目

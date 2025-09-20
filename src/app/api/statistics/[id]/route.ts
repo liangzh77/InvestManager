@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/db';
+import { getDatabase } from '@/lib/db-vercel';
 
 // GET - 获取特定项目的详细统计
 export async function GET(
