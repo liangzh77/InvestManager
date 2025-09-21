@@ -17,7 +17,7 @@ export async function GET(
     }
 
     const db = getDatabase();
-    const transaction = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
+    const transaction = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
 
     if (!transaction) {
       return NextResponse.json(
@@ -57,7 +57,7 @@ export async function PUT(
     const db = getDatabase();
 
     // 检查交易是否存在
-    const existingTransaction = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as any;
+    const existingTransaction = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as any;
     if (!existingTransaction) {
       return NextResponse.json(
         { success: false, error: '交易不存在' },
@@ -71,7 +71,7 @@ export async function PUT(
 
     if (data.项目ID || existingTransaction.项目ID) {
       const projectId = data.项目ID || existingTransaction.项目ID;
-      const project = db.prepare('SELECT 项目名称, 当前价 FROM projects WHERE id = ?').get(projectId) as any;
+      const project = await db.prepare('SELECT 项目名称, 当前价 FROM projects WHERE id = ?').get(projectId) as any;
 
       if (project) {
         项目名称 = project.项目名称;
@@ -107,7 +107,7 @@ export async function PUT(
       WHERE id = ?
     `);
 
-    stmt.run(
+    await stmt.run(
       data.项目ID || null,
       项目名称 || null,
       data.状态 || null,
@@ -126,7 +126,7 @@ export async function PUT(
     );
 
     // 重新计算相关项目的统计数据
-    const updatedTransaction = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as any;
+    const updatedTransaction = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as any;
 
     // 需要重新计算的项目ID集合
     const projectsToUpdate = new Set<number>();
@@ -155,7 +155,7 @@ export async function PUT(
         const stats = await calculateProjectStats(projectId, db);
         console.log(`项目 ${projectId} 统计更新:`, stats);
 
-        db.prepare(`
+        await db.prepare(`
           UPDATE projects SET
             成本价 = ?, 股数 = ?, 仓位 = ?, 成本金额 = ?,
             当前金额 = ?, 盈亏金额 = ?, 项目盈亏率 = ?, 总盈亏率 = ?
@@ -198,7 +198,7 @@ export async function DELETE(
     const db = getDatabase();
 
     // 检查交易是否存在
-    const existingTransaction = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as any;
+    const existingTransaction = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(id) as any;
     if (!existingTransaction) {
       return NextResponse.json(
         { success: false, error: '交易不存在' },
@@ -207,12 +207,12 @@ export async function DELETE(
     }
 
     // 删除交易
-    db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
+    await db.prepare('DELETE FROM transactions WHERE id = ?').run(id);
 
     // 如果被删除的交易状态为'完成'，重新计算相关项目统计
     if (existingTransaction.状态 === '完成' && existingTransaction.项目ID) {
       const stats = await calculateProjectStats(existingTransaction.项目ID, db);
-      db.prepare(`
+      await db.prepare(`
         UPDATE projects SET
           成本价 = ?, 股数 = ?, 仓位 = ?, 成本金额 = ?,
           当前金额 = ?, 盈亏金额 = ?, 项目盈亏率 = ?, 总盈亏率 = ?

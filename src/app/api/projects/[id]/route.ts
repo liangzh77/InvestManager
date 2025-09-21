@@ -17,7 +17,7 @@ export async function GET(
     }
 
     const db = getDatabase();
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    const project = await db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
 
     if (!project) {
       return NextResponse.json(
@@ -57,7 +57,7 @@ export async function PUT(
     const db = getDatabase();
 
     // 检查项目是否存在
-    const existingProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    const existingProject = await db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
     if (!existingProject) {
       return NextResponse.json(
         { success: false, error: '项目不存在' },
@@ -77,7 +77,7 @@ export async function PUT(
       WHERE id = ?
     `);
 
-    stmt.run(
+    await stmt.run(
       data.项目名称 || null,
       data.项目代号 || null,
       data.交易类型 || null,
@@ -104,7 +104,7 @@ export async function PUT(
       WHERE id = ?
     `);
 
-    updateStatsStmt.run(
+    await updateStatsStmt.run(
       stats.成本价,
       stats.股数,
       stats.仓位,
@@ -117,7 +117,7 @@ export async function PUT(
     );
 
     // 获取更新后的项目
-    const updatedProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    const updatedProject = await db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
 
     return NextResponse.json({
       success: true,
@@ -149,7 +149,7 @@ export async function DELETE(
     const db = getDatabase();
 
     // 检查项目是否存在
-    const existingProject = db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+    const existingProject = await db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
     if (!existingProject) {
       return NextResponse.json(
         { success: false, error: '项目不存在' },
