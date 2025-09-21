@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
 
     // 更新每个交易的排序顺序
     for (const transaction of transactions) {
-      db.prepare(
+      await db.prepare(
         'UPDATE transactions SET 排序顺序 = ? WHERE id = ? AND 项目ID = ?'
       ).run(transaction.排序顺序, transaction.id, projectId);
     }
