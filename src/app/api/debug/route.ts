@@ -19,22 +19,22 @@ export async function GET() {
 
     // 检查各个表是否存在和有数据
     try {
-      const projects = await db.prepare('SELECT COUNT(*) as count FROM projects').get();
-      debug.tables.projects = { exists: true, count: projects.count };
+      const projects = await db.prepare('SELECT COUNT(*) as count FROM projects').get() as any;
+      debug.tables.projects = { exists: true, count: projects?.count || 0 };
     } catch (error) {
       debug.tables.projects = { exists: false, error: (error as Error).message };
     }
 
     try {
-      const transactions = await db.prepare('SELECT COUNT(*) as count FROM transactions').get();
-      debug.tables.transactions = { exists: true, count: transactions.count };
+      const transactions = await db.prepare('SELECT COUNT(*) as count FROM transactions').get() as any;
+      debug.tables.transactions = { exists: true, count: transactions?.count || 0 };
     } catch (error) {
       debug.tables.transactions = { exists: false, error: (error as Error).message };
     }
 
     try {
-      const overview = await db.prepare('SELECT COUNT(*) as count FROM overview').get();
-      debug.tables.overview = { exists: true, count: overview.count };
+      const overview = await db.prepare('SELECT COUNT(*) as count FROM overview').get() as any;
+      debug.tables.overview = { exists: true, count: overview?.count || 0 };
     } catch (error) {
       debug.tables.overview = { exists: false, error: (error as Error).message };
     }
