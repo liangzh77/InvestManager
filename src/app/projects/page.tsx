@@ -8,6 +8,7 @@ import { InlineEditSelect } from '@/components/editable/InlineEditSelect';
 import { InlineEditDate } from '@/components/editable/InlineEditDate';
 import PageErrorLogViewer from '@/components/PageErrorLogViewer';
 import { getPageErrorLogger } from '@/utils/pageErrorLogger';
+import { api } from '@/utils/simpleCache';
 import {
   DndContext,
   closestCenter,
@@ -106,8 +107,7 @@ export default function ProjectsPage() {
   // 获取总金额
   const fetchTotalAmount = async () => {
     try {
-      const response = await fetch('/api/overview');
-      const data = await response.json();
+      const data = await api.overview();
       if (data.success && data.data) {
         const totalAmountValue = data.data.总金额;
         if (totalAmountValue && totalAmountValue > 0) {
@@ -132,18 +132,13 @@ export default function ProjectsPage() {
   // 获取项目列表
   const fetchProjects = async () => {
     try {
-      const response = await fetch('/api/projects');
-      const data = await response.json();
+      const data = await api.projects();
       if (data.success) {
         // 按排序顺序排序项目
-        const sortedProjects = data.data.sort((a: Project, b: Project) => 
+        const sortedProjects = data.data.sort((a: Project, b: Project) =>
           (a.排序顺序 || 0) - (b.排序顺序 || 0)
         );
         setProjects(sortedProjects);
-        // 为每个项目获取交易记录
-        for (const project of sortedProjects) {
-          await fetchTransactionsForProject(project.id);
-        }
       }
     } catch (error) {
       const errorMsg = `获取项目列表失败: ${error instanceof Error ? error.message : String(error)}`;
@@ -152,43 +147,117 @@ export default function ProjectsPage() {
     }
   };
 
-  // 获取指定项目的交易记录
-  const fetchTransactionsForProject = async (projectId: number) => {
+  // 获取所有交易记录并按项目分组
+  const fetchAllTransactions = async () => {
     try {
-      const response = await fetch('/api/transactions');
-      const data = await response.json();
+      const data = await api.transactions();
       if (data.success) {
-        const projectTransactions = data.data.filter((t: Transaction) => t.项目ID === projectId);
-        setTransactions(prev => ({
-          ...prev,
-          [projectId]: projectTransactions
-        }));
+        // 按项目ID分组交易记录
+        const transactionsByProject: { [projectId: number]: Transaction[] } = {};
+        data.data.forEach((transaction: Transaction) => {
+          const projectId = transaction.项目ID;
+          if (!transactionsByProject[projectId]) {
+            transactionsByProject[projectId] = [];
+          }
+          transactionsByProject[projectId].push(transaction);
+        });
+
+        // 对每个项目的交易按排序顺序排序
+        Object.keys(transactionsByProject).forEach(projectId => {
+          transactionsByProject[Number(projectId)].sort((a, b) =>
+            (a.排序顺序 || 0) - (b.排序顺序 || 0)
+          );
+        });
+
+        setTransactions(transactionsByProject);
       }
     } catch (error) {
-      const errorMsg = `获取项目 ${projectId} 的交易记录失败: ${error instanceof Error ? error.message : String(error)}`;
+      const errorMsg = `获取交易记录失败: ${error instanceof Error ? error.message : String(error)}`;
       console.error(errorMsg);
       pageErrorLogger.addError(errorMsg);
     }
   };
 
   useEffect(() => {
+    let isMounted = true;
+
     const loadData = async () => {
-      await Promise.all([
-        fetchTotalAmount(),
-        fetchProjects()
-      ]);
-      setLoading(false);
+      if (!isMounted) return;
+
+      try {
+        const [overviewData, projectsData, transactionsData] = await Promise.all([
+          api.overview(),
+          api.projects(),
+          api.transactions()
+        ]);
+
+        if (!isMounted) return;
+
+        // 处理总金额
+        if (overviewData.success && overviewData.data) {
+          const totalAmountValue = overviewData.data.总金额;
+          if (totalAmountValue && totalAmountValue > 0) {
+            setTotalAmount(totalAmountValue);
+          } else {
+            setTotalAmount(100000);
+          }
+        } else {
+          setTotalAmount(100000);
+        }
+
+        // 处理项目数据
+        if (projectsData.success) {
+          const sortedProjects = projectsData.data.sort((a: Project, b: Project) =>
+            (a.排序顺序 || 0) - (b.排序顺序 || 0)
+          );
+          setProjects(sortedProjects);
+        }
+
+        // 处理交易数据
+        if (transactionsData.success) {
+          const transactionsByProject: { [projectId: number]: Transaction[] } = {};
+          transactionsData.data.forEach((transaction: Transaction) => {
+            const projectId = transaction.项目ID;
+            if (!transactionsByProject[projectId]) {
+              transactionsByProject[projectId] = [];
+            }
+            transactionsByProject[projectId].push(transaction);
+          });
+
+          // 对每个项目的交易按排序顺序排序
+          Object.keys(transactionsByProject).forEach(projectId => {
+            transactionsByProject[Number(projectId)].sort((a, b) =>
+              (a.排序顺序 || 0) - (b.排序顺序 || 0)
+            );
+          });
+
+          setTransactions(transactionsByProject);
+        }
+
+        setLoading(false);
+      } catch (error) {
+        if (isMounted) {
+          const errorMsg = `加载数据失败: ${error instanceof Error ? error.message : String(error)}`;
+          console.error(errorMsg);
+          pageErrorLogger.addError(errorMsg);
+          setLoading(false);
+        }
+      }
     };
+
     loadData();
 
     // 添加页面焦点事件监听，当用户重新聚焦页面时刷新总金额
     const handleFocus = () => {
-      fetchTotalAmount();
+      if (isMounted) {
+        fetchTotalAmount();
+      }
     };
 
     window.addEventListener('focus', handleFocus);
 
     return () => {
+      isMounted = false;
       window.removeEventListener('focus', handleFocus);
     };
   }, []);
@@ -222,22 +291,22 @@ export default function ProjectsPage() {
       }
 
       // 1) 获取总金额
-      const overviewRes = await fetch('/api/overview');
-      const overviewJson = await overviewRes.json();
+      const overviewJson = await api.overview();
       const total = overviewJson?.data?.总金额 && overviewJson.data.总金额 > 0 ? overviewJson.data.总金额 : 100000;
       setTotalAmount(total);
 
-      // 2) 获取项目与交易
-      const projectsRes = await fetch('/api/projects');
-      const projectsJson = await projectsRes.json();
+      // 2) 获取项目与交易 - 并行获取以提高性能
+      const [projectsJson, txJson] = await Promise.all([
+        api.projects(),
+        api.transactions()
+      ]);
+
       let fetchedProjects: Project[] = [];
       if (projectsJson.success) {
         fetchedProjects = projectsJson.data.sort((a: Project, b: Project) => (a.排序顺序 || 0) - (b.排序顺序 || 0));
         setProjects(fetchedProjects);
       }
 
-      const txRes = await fetch('/api/transactions');
-      const txJson = await txRes.json();
       const allTx: Transaction[] = txJson.success ? txJson.data : [];
       const txByProject: { [projectId: number]: Transaction[] } = {};
       allTx.forEach(t => {
@@ -245,65 +314,87 @@ export default function ProjectsPage() {
         if (!txByProject[pid]) txByProject[pid] = [];
         txByProject[pid].push(t);
       });
+
+      // 对每个项目的交易按排序顺序排序
+      Object.keys(txByProject).forEach(projectId => {
+        txByProject[Number(projectId)].sort((a, b) =>
+          (a.排序顺序 || 0) - (b.排序顺序 || 0)
+        );
+      });
+
       setTransactions(txByProject);
 
       // 3) 重算所有交易（含"计划"和"完成"）的 交易金额 与 仓位（基于总金额）
-      const txUpdates: Promise<any>[] = [];
       const updatedTxByProject: { [projectId: number]: Transaction[] } = {};
-      
+      const transactionUpdates: any[] = [];
+
       allTx.forEach(t => {
         const price = t.交易价 || 0;
         const amount = (t.交易金额 && t.交易金额 > 0)
           ? t.交易金额
           : ((t.股数 || 0) * (price || 0));
         const position = total > 0 ? (amount / total) * 100 : 0;
-        
+
         // 更新交易数据
         const updatedTx = {
           ...t,
           交易金额: amount,
           仓位: position,
         };
-        
+
         // 按项目分组更新后的交易数据
         const pid = t.项目ID as number;
         if (!updatedTxByProject[pid]) updatedTxByProject[pid] = [];
         updatedTxByProject[pid].push(updatedTx);
-        
-        txUpdates.push(
-          fetch(`/api/transactions/${t.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              交易金额: amount,
-              仓位: position,
-            }),
-          })
-        );
-      });
-      await Promise.allSettled(txUpdates);
-      
-      // 更新本地交易状态
-      setTransactions(updatedTxByProject);
 
-      // 4) 按项目重算 仓位/项目盈亏率/总盈亏率 并回写（使用更新后的交易数据）
-      const projectUpdates: Promise<any>[] = [];
+        // 收集需要更新的交易数据
+        transactionUpdates.push({
+          id: t.id,
+          交易金额: amount,
+          仓位: position,
+        });
+      });
+
+      // 4) 按项目重算 仓位/项目盈亏率/总盈亏率（使用更新后的交易数据）
+      const projectUpdates: any[] = [];
       fetchedProjects.forEach(p => {
         const list = updatedTxByProject[p.id] || [];
         const metrics = calculateProjectMetrics(list, p.当前价 || 0, total);
-        projectUpdates.push(
-          fetch(`/api/projects/${p.id}`, {
-            method: 'PUT',
+        projectUpdates.push({
+          id: p.id,
+          仓位: metrics.仓位,
+          项目盈亏率: metrics.项目盈亏率,
+          总盈亏率: metrics.总盈亏率,
+        });
+      });
+
+      // 5) 批量更新数据库 - 只需要1个API调用！
+      if (transactionUpdates.length > 0 || projectUpdates.length > 0) {
+        console.log(`🚀 批量更新: ${transactionUpdates.length}个交易, ${projectUpdates.length}个项目`);
+
+        try {
+          const response = await fetch('/api/batch-update', {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              仓位: metrics.仓位,
-              项目盈亏率: metrics.项目盈亏率,
-              总盈亏率: metrics.总盈亏率,
+              transactions: transactionUpdates,
+              projects: projectUpdates
             }),
-          })
-        );
-      });
-      await Promise.allSettled(projectUpdates);
+          });
+
+          const result = await response.json();
+          if (result.success) {
+            console.log(`✅ 批量更新成功: ${result.data.transactionsUpdated}个交易, ${result.data.projectsUpdated}个项目`);
+          } else {
+            console.error('❌ 批量更新失败:', result.error);
+          }
+        } catch (error) {
+          console.error('❌ 批量更新请求失败:', error);
+        }
+      }
+
+      // 更新本地交易状态
+      setTransactions(updatedTxByProject);
 
       // 5) 同步本地状态中的项目派生字段
       setProjects(prev => prev.map(p => {
@@ -322,7 +413,7 @@ export default function ProjectsPage() {
       pageErrorLogger.addError(errorMsg);
       // 兜底：保留原有简易刷新
       fetchTotalAmount();
-      fetchProjects();
+      Promise.all([fetchProjects(), fetchAllTransactions()]);
     }
   };
 
@@ -353,6 +444,10 @@ export default function ProjectsPage() {
 
       const data = await response.json();
       if (data.success) {
+        // 清除相关缓存
+        api.clearProjects();
+        api.clearOverview();
+
         // 更新本地状态
         // 本地状态同步：若是当前价，联动更新衍生字段
         setProjects(prev => prev.map(p => {
@@ -520,6 +615,11 @@ export default function ProjectsPage() {
 
       const data = await response.json();
       if (data.success) {
+        // 清除相关缓存
+        api.clearTransactions();
+        api.clearProjects();
+        api.clearOverview();
+
         // 更新本地状态
         setTransactions(prev => {
           const updated = { ...prev };
@@ -531,8 +631,8 @@ export default function ProjectsPage() {
           return updated;
         });
 
-        // 重新获取项目数据以更新计算字段
-        fetchProjects();
+        // 重新获取项目数据和交易数据以更新计算字段
+        Promise.all([fetchProjects(), fetchAllTransactions()]);
 
         // 重新获取总金额
         fetchTotalAmount();
@@ -567,8 +667,8 @@ export default function ProjectsPage() {
           [projectId]: prev[projectId]?.filter(t => t.id !== transactionId) || []
         }));
 
-        // 重新获取项目数据以更新计算字段
-        fetchProjects();
+        // 重新获取项目数据和交易数据以更新计算字段
+        Promise.all([fetchProjects(), fetchAllTransactions()]);
 
         // 重新获取总金额
         fetchTotalAmount();
@@ -823,12 +923,12 @@ export default function ProjectsPage() {
           if (!response.ok) {
             console.error('更新项目排序失败');
             // 如果更新失败，重新获取数据
-            fetchProjects();
+            Promise.all([fetchProjects(), fetchAllTransactions()]);
           }
         } catch (error) {
           console.error('更新项目排序失败:', error);
           // 如果更新失败，重新获取数据
-          fetchProjects();
+          Promise.all([fetchProjects(), fetchAllTransactions()]);
         }
       }
     }

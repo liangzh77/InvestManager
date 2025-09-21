@@ -7,6 +7,7 @@ import { InlineEditSelect } from '@/components/editable/InlineEditSelect';
 import { InlineEditDate } from '@/components/editable/InlineEditDate';
 import PageErrorLogViewer from '@/components/PageErrorLogViewer';
 import { getPageErrorLogger } from '@/utils/pageErrorLogger';
+import { cachedApiCalls } from '@/utils/apiCache';
 
 interface Project {
   id: number;
@@ -67,8 +68,7 @@ export default function PlansPage() {
   // 获取总金额
   const fetchTotalAmount = async () => {
     try {
-      const response = await fetch('/api/overview');
-      const data = await response.json();
+      const data = await cachedApiCalls.overview();
       if (data.success && data.data) {
         const totalAmountValue = data.data.总金额;
         if (totalAmountValue && totalAmountValue > 0) {
@@ -90,8 +90,7 @@ export default function PlansPage() {
   // 获取项目列表
   const fetchProjects = async () => {
     try {
-      const response = await fetch('/api/projects');
-      const data = await response.json();
+      const data = await cachedApiCalls.projects();
       if (data.success) {
         // 按排序顺序排序项目
         const sortedProjects = data.data.sort((a: Project, b: Project) =>
@@ -109,8 +108,7 @@ export default function PlansPage() {
   // 获取计划交易
   const fetchPlanTransactions = async () => {
     try {
-      const response = await fetch('/api/transactions');
-      const data = await response.json();
+      const data = await cachedApiCalls.transactions();
       if (data.success) {
         // 只显示状态为"计划"的交易
         const plans = data.data.filter((t: Transaction) => t.状态 === '计划');
@@ -151,8 +149,7 @@ export default function PlansPage() {
       await fetchTotalAmount();
 
       // 2. 获取项目数据
-      const projectsResponse = await fetch('/api/projects');
-      const projectsData = await projectsResponse.json();
+      const projectsData = await cachedApiCalls.projects();
       let fetchedProjects: Project[] = [];
       if (projectsData.success) {
         fetchedProjects = projectsData.data.sort((a: Project, b: Project) =>
@@ -162,8 +159,7 @@ export default function PlansPage() {
       }
 
       // 3. 获取计划交易并立即排序
-      const transactionsResponse = await fetch('/api/transactions');
-      const transactionsData = await transactionsResponse.json();
+      const transactionsData = await cachedApiCalls.transactions();
       if (transactionsData.success) {
         const plans = transactionsData.data.filter((t: Transaction) => t.状态 === '计划');
 
@@ -370,8 +366,7 @@ export default function PlansPage() {
     await fetchTotalAmount();
 
     // 2. 获取项目数据
-    const projectsResponse = await fetch('/api/projects');
-    const projectsData = await projectsResponse.json();
+    const projectsData = await cachedApiCalls.projects();
     let fetchedProjects: Project[] = [];
     if (projectsData.success) {
       fetchedProjects = projectsData.data.sort((a: Project, b: Project) =>
@@ -381,8 +376,7 @@ export default function PlansPage() {
     }
 
     // 3. 获取计划交易并立即排序
-    const transactionsResponse = await fetch('/api/transactions');
-    const transactionsData = await transactionsResponse.json();
+    const transactionsData = await cachedApiCalls.transactions();
     if (transactionsData.success) {
       const plans = transactionsData.data.filter((t: Transaction) => t.状态 === '计划');
 

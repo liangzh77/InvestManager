@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Eye, EyeOff, ChevronUp, ChevronDown } from 'lucide-react'
+import { cachedApiCalls } from '@/utils/apiCache'
 
 interface OverviewData {
   总金额: number
@@ -46,14 +47,9 @@ export default function Dashboard() {
   const fetchOverviewData = async () => {
     try {
       setLoading(true)
-      const [overviewResponse, projectsResponse] = await Promise.all([
-        fetch('/api/overview'),
-        fetch('/api/projects')
-      ])
-
       const [overviewResult, projectsResult] = await Promise.all([
-        overviewResponse.json(),
-        projectsResponse.json()
+        cachedApiCalls.overview(),
+        cachedApiCalls.projects()
       ])
 
       if (overviewResult.success) {
