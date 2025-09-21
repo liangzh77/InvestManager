@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     // 如果交易状态为'完成'，更新相关项目的统计数据
     if (data.状态 === '完成' && data.项目ID) {
-      const stats = calculateProjectStats(data.项目ID, db);
+      const stats = await calculateProjectStats(data.项目ID, db);
       db.prepare(`
         UPDATE projects SET
           成本价 = ?, 股数 = ?, 仓位 = ?, 成本金额 = ?,

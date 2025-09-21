@@ -16,16 +16,16 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
 
     // 使用事务确保数据一致性
-    const updateTransaction = db.transaction(() => {
-      projects.forEach((project: { id: number; 排序顺序: number }) => {
-        db.prepare('UPDATE projects SET 排序顺序 = ? WHERE id = ?').run(
+    const updateTransaction = db.transaction(async () => {
+      for (const project of projects as { id: number; 排序顺序: number }[]) {
+        await db.prepare('UPDATE projects SET 排序顺序 = ? WHERE id = ?').run(
           project.排序顺序,
           project.id
         );
-      });
+      }
     });
 
-    updateTransaction();
+    await updateTransaction();
 
     return NextResponse.json({
       success: true,

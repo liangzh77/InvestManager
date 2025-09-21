@@ -152,7 +152,7 @@ export async function PUT(
 
       // 重新计算所有相关项目的统计数据
       for (const projectId of Array.from(projectsToUpdate)) {
-        const stats = calculateProjectStats(projectId, db);
+        const stats = await calculateProjectStats(projectId, db);
         console.log(`项目 ${projectId} 统计更新:`, stats);
 
         db.prepare(`
@@ -211,7 +211,7 @@ export async function DELETE(
 
     // 如果被删除的交易状态为'完成'，重新计算相关项目统计
     if (existingTransaction.状态 === '完成' && existingTransaction.项目ID) {
-      const stats = calculateProjectStats(existingTransaction.项目ID, db);
+      const stats = await calculateProjectStats(existingTransaction.项目ID, db);
       db.prepare(`
         UPDATE projects SET
           成本价 = ?, 股数 = ?, 仓位 = ?, 成本金额 = ?,

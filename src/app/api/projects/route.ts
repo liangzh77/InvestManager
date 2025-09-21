@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       ) VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `);
 
-    const result = stmt.run(
+    const result = await stmt.run(
       data.项目名称,
       data.项目代号 || null,
       data.交易类型,
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     );
 
     // 获取创建的项目
-    const project = db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
+    const project = await db.prepare('SELECT * FROM projects WHERE id = ?').get(result.lastInsertRowid);
 
     return NextResponse.json({
       success: true,
