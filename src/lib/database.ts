@@ -5,7 +5,8 @@ import { getVercelDatabase, calculateProjectStatsVercel, calculateTransactionDis
 import { getTursoDatabase, calculateProjectStatsTurso, calculateTransactionDistanceTurso, initializeTursoDatabase } from './db-turso';
 
 // 判断使用哪种数据库
-const isTursoEnvironment = process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN;
+const isTursoEnvironment = process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN &&
+  process.env.TURSO_DATABASE_URL.trim() !== '' && process.env.TURSO_AUTH_TOKEN.trim() !== '';
 const isVercelEnvironment = process.env.VERCEL || process.env.NODE_ENV === 'production';
 
 // 获取适当的数据库实例

@@ -7,7 +7,7 @@ export async function GET() {
     const db = getDatabase();
 
     // 获取所有项目的详细统计
-    const projectStatistics = db.prepare(`
+    const projectStatistics = await db.prepare(`
       SELECT
         id as 项目ID,
         项目名称,
@@ -30,7 +30,7 @@ export async function GET() {
     `).all();
 
     // 获取每个项目的交易统计
-    const transactionStatistics = db.prepare(`
+    const transactionStatistics = await db.prepare(`
       SELECT
         项目ID,
         COUNT(*) as 交易次数,

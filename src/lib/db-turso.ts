@@ -1,10 +1,24 @@
 import { createClient } from '@libsql/client';
 
-// Turso数据库配置
-const client = createClient({
-  url: process.env.TURSO_DATABASE_URL || '',
-  authToken: process.env.TURSO_AUTH_TOKEN || '',
-});
+// Turso数据库配置 - 延迟创建客户端
+let client: any = null;
+
+function getClient() {
+  if (!client) {
+    const url = process.env.TURSO_DATABASE_URL;
+    const authToken = process.env.TURSO_AUTH_TOKEN;
+
+    if (!url || !authToken || url.trim() === '' || authToken.trim() === '') {
+      throw new Error('Turso database URL or auth token is not configured');
+    }
+
+    client = createClient({
+      url,
+      authToken,
+    });
+  }
+  return client;
+}
 
 // Turso数据库操作类 - 兼容SQLite接口
 export class TursoDatabase {
@@ -13,7 +27,7 @@ export class TursoDatabase {
     return {
       get: async (...params: any[]) => {
         try {
-          const result = await client.execute({
+          const result = await getClient().execute({
             sql,
             args: params
           });
@@ -25,7 +39,7 @@ export class TursoDatabase {
       },
       all: async (...params: any[]) => {
         try {
-          const result = await client.execute({
+          const result = await getClient().execute({
             sql,
             args: params
           });
@@ -37,7 +51,7 @@ export class TursoDatabase {
       },
       run: async (...params: any[]) => {
         try {
-          const result = await client.execute({
+          const result = await getClient().execute({
             sql,
             args: params
           });
@@ -65,7 +79,7 @@ export class TursoDatabase {
   // 执行SQL语句
   async exec(sql: string) {
     try {
-      await client.execute(sql);
+      await getClient().execute(sql);
     } catch (error) {
       console.error('Turso exec error:', error);
       throw error;
@@ -76,7 +90,7 @@ export class TursoDatabase {
   transaction(fn: () => Promise<void>) {
     return async () => {
       try {
-        await client.batch([]);
+        await getClient().batch([]);
         await fn();
       } catch (error) {
         console.error('Turso transaction failed:', error);
@@ -92,7 +106,7 @@ export async function initializeTursoDatabase() {
     console.log('Initializing Turso database...');
 
     // 创建overview表
-    await client.execute(`
+    await getClient().execute(`
       CREATE TABLE IF NOT EXISTS overview (
         id INTEGER PRIMARY KEY,
         总金额 REAL DEFAULT 0,
@@ -106,7 +120,7 @@ export async function initializeTursoDatabase() {
     `);
 
     // 创建projects表
-    await client.execute(`
+    await getClient().execute(`
       CREATE TABLE IF NOT EXISTS projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         项目名称 TEXT NOT NULL,
@@ -129,7 +143,7 @@ export async function initializeTursoDatabase() {
     `);
 
     // 创建transactions表
-    await client.execute(`
+    await getClient().execute(`
       CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         项目ID INTEGER,
@@ -151,9 +165,9 @@ export async function initializeTursoDatabase() {
     `);
 
     // 检查overview是否有初始数据
-    const existingOverview = await client.execute('SELECT id FROM overview WHERE id = 1');
+    const existingOverview = await getClient().execute('SELECT id FROM overview WHERE id = 1');
     if (existingOverview.rows.length === 0) {
-      await client.execute(`
+      await getClient().execute(`
         INSERT INTO overview (id, 总金额, 成本金额, 持仓金额, 盈亏金额, 盈亏率, 仓位)
         VALUES (1, 100000, 0, 0, 0, 0, 0)
       `);
