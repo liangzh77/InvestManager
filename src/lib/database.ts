@@ -12,14 +12,14 @@ const isVercelEnvironment = process.env.VERCEL && (process.env.POSTGRES_URL || p
 // 获取适当的数据库实例
 export function getDatabase() {
   if (isTursoEnvironment) {
-    // 如果配置了Turso环境变量，优先使用Turso
+    // 如果配置了Turso环境变量，优先使用Turso（包括Vercel环境）
     return getTursoDatabase();
   } else if (isVercelEnvironment) {
-    // Vercel环境使用Postgres
+    // Vercel环境使用Postgres（如果配置了）
     return getVercelDatabase();
   } else if (process.env.VERCEL) {
-    // Vercel环境但没有配置Postgres，抛出明确的错误
-    throw new Error('Vercel environment detected but no PostgreSQL database configured. Please add POSTGRES_URL environment variable.');
+    // Vercel环境但没有配置数据库，抛出明确的错误
+    throw new Error('Vercel environment detected but no database configured. Please add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN environment variables for Turso database.');
   } else {
     // 本地开发使用SQLite
     return getSQLiteDatabase();
@@ -33,7 +33,7 @@ export async function calculateProjectStats(projectId: number, db?: any) {
   } else if (isVercelEnvironment) {
     return await calculateProjectStatsVercel(projectId);
   } else if (process.env.VERCEL) {
-    throw new Error('Vercel environment detected but no PostgreSQL database configured. Please add POSTGRES_URL environment variable.');
+    throw new Error('Vercel environment detected but no database configured. Please add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN environment variables for Turso database.');
   } else {
     return calculateProjectStatsSQLite(projectId, db || getSQLiteDatabase());
   }
@@ -46,7 +46,7 @@ export function calculateTransactionDistance(transaction: any, currentPrice: num
   } else if (isVercelEnvironment) {
     return calculateTransactionDistanceVercel(transaction, currentPrice);
   } else if (process.env.VERCEL) {
-    throw new Error('Vercel environment detected but no PostgreSQL database configured. Please add POSTGRES_URL environment variable.');
+    throw new Error('Vercel environment detected but no database configured. Please add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN environment variables for Turso database.');
   } else {
     return calculateTransactionDistanceSQLite(transaction, currentPrice);
   }
@@ -59,7 +59,7 @@ export async function initializeDatabase() {
   } else if (isVercelEnvironment) {
     await initializeVercelDatabase();
   } else if (process.env.VERCEL) {
-    throw new Error('Vercel environment detected but no PostgreSQL database configured. Please add POSTGRES_URL environment variable.');
+    throw new Error('Vercel environment detected but no database configured. Please add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN environment variables for Turso database.');
   } else {
     // SQLite在getDatabase()时自动初始化
     getSQLiteDatabase();
