@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       params = [parseInt(projectId)];
     }
 
-    const transactions = db.prepare(query).all(...params);
+    const transactions = await db.prepare(query).all(...params);
 
     return NextResponse.json({
       success: true,
