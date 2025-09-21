@@ -69,8 +69,8 @@ export async function PUT(
     }
 
     // 获取项目信息用于计算距离
-    let 项目名称 = data.项目名称;
-    let 距离 = data.距离;
+    let 项目名称 = data.项目名称 || null;
+    let 距离 = data.距离 || null;
 
     if (data.项目ID || existingTransaction.项目ID) {
       const projectId = data.项目ID || existingTransaction.项目ID;
@@ -123,8 +123,8 @@ export async function PUT(
       data.仓位 || null,
       data.交易金额 || null,
       data.创建时间 || null,
-      data.状态,
-      data.交易时间,
+      data.状态 || null,
+      data.交易时间 || null,
       id
     );
 
