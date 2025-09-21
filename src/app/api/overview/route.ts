@@ -8,11 +8,11 @@ export async function GET() {
     const db = getDatabase();
 
     // 首先尝试从overview表获取已保存的总金额
-    const existingOverview = db.prepare('SELECT 总金额 FROM overview WHERE id = 1').get() as any;
+    const existingOverview = await db.prepare('SELECT 总金额 FROM overview WHERE id = 1').get() as any;
     const 保存的总金额 = existingOverview?.总金额 || 0;
 
     // 计算所有项目的总体统计
-    const projectStats = db.prepare(`
+    const projectStats = await db.prepare(`
       SELECT
         COALESCE(SUM(成本金额), 0) as 总成本金额,
         COALESCE(SUM(当前金额), 0) as 总当前金额,
@@ -34,7 +34,7 @@ export async function GET() {
       : 0;
 
     // 获取最近的交易活动
-    const recentTransactions = db.prepare(`
+    const recentTransactions = await db.prepare(`
       SELECT COUNT(*) as 交易总数,
         COUNT(CASE WHEN 状态 = '计划' THEN 1 END) as 计划中交易,
         COUNT(CASE WHEN 状态 = '完成' THEN 1 END) as 已完成交易
@@ -65,7 +65,7 @@ export async function GET() {
     };
 
     // 保存到overview表（保持总金额不变）
-    db.prepare(`
+    await db.prepare(`
       INSERT OR REPLACE INTO overview (
         id, 总金额, 成本金额, 持仓金额, 盈亏金额, 盈亏率, 仓位, 更新时间
       ) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -126,7 +126,7 @@ export async function PUT(request: NextRequest) {
     const db = getDatabase();
 
     // 获取当前项目统计
-    const projectStats = db.prepare(`
+    const projectStats = await db.prepare(`
       SELECT
         COALESCE(SUM(成本金额), 0) as 总成本金额,
         COALESCE(SUM(当前金额), 0) as 总当前金额,
@@ -142,7 +142,7 @@ export async function PUT(request: NextRequest) {
       : 0;
 
     // 更新总览表
-    const updateResult = db.prepare(`
+    const updateResult = await db.prepare(`
       INSERT OR REPLACE INTO overview (
         id, 总金额, 成本金额, 持仓金额, 盈亏金额, 盈亏率, 仓位, 更新时间
       ) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -156,7 +156,7 @@ export async function PUT(request: NextRequest) {
     );
 
     // 获取更新后的数据
-    const updatedOverview = db.prepare('SELECT * FROM overview WHERE id = 1').get();
+    const updatedOverview = await db.prepare('SELECT * FROM overview WHERE id = 1').get();
 
     return NextResponse.json({
       success: true,

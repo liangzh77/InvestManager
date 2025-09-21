@@ -43,7 +43,7 @@ export class TursoDatabase {
             sql,
             args: params
           });
-          return result.rows.map(row => this.convertRow(row));
+          return result.rows.map((row: any) => this.convertRow(row));
         } catch (error) {
           console.error('Turso query error:', error);
           throw error;

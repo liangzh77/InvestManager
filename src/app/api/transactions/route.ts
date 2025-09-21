@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     // 如果提供了项目ID，验证项目是否存在并获取项目名称
     let 项目名称 = data.项目名称;
     if (data.项目ID) {
-      const project = db.prepare('SELECT 项目名称, 当前价 FROM projects WHERE id = ?').get(data.项目ID) as any;
+      const project = await db.prepare('SELECT 项目名称, 当前价 FROM projects WHERE id = ?').get(data.项目ID) as any;
       if (project) {
         项目名称 = project.项目名称;
 
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
     `);
 
-    const result = stmt.run(
+    const result = await stmt.run(
       data.项目ID || null,
       项目名称 || null,
       data.状态,
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     // 如果交易状态为'完成'，更新相关项目的统计数据
     if (data.状态 === '完成' && data.项目ID) {
       const stats = await calculateProjectStats(data.项目ID, db);
-      db.prepare(`
+      await db.prepare(`
         UPDATE projects SET
           成本价 = ?, 股数 = ?, 仓位 = ?, 成本金额 = ?,
           当前金额 = ?, 盈亏金额 = ?, 项目盈亏率 = ?, 总盈亏率 = ?
@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取创建的交易
-    const transaction = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid);
+    const transaction = await db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid);
 
     return NextResponse.json({
       success: true,

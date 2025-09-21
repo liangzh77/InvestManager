@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
 
     // 获取所有进行中的项目
-    const activeProjects = db.prepare(`
+    const activeProjects = await db.prepare(`
       SELECT id, 项目名称, 项目代号
       FROM projects
       WHERE 状态 = '进行'
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 更新数据库中的当前价
-        db.prepare(`
+        await db.prepare(`
           UPDATE projects
           SET 当前价 = ?
           WHERE id = ?

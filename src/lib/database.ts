@@ -7,7 +7,7 @@ import { getTursoDatabase, calculateProjectStatsTurso, calculateTransactionDista
 // 判断使用哪种数据库
 const isTursoEnvironment = process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN &&
   process.env.TURSO_DATABASE_URL.trim() !== '' && process.env.TURSO_AUTH_TOKEN.trim() !== '';
-const isVercelEnvironment = process.env.VERCEL || process.env.NODE_ENV === 'production';
+const isVercelEnvironment = process.env.VERCEL && (process.env.POSTGRES_URL || process.env.DATABASE_URL);
 
 // 获取适当的数据库实例
 export function getDatabase() {

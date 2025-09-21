@@ -7,7 +7,7 @@ import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 export async function GET() {
   try {
     const db = getDatabase();
-    const projects = db.prepare('SELECT * FROM projects ORDER BY 排序顺序 ASC, 创建时间 DESC').all();
+    const projects = await db.prepare('SELECT * FROM projects ORDER BY 排序顺序 ASC, 创建时间 DESC').all();
 
     return NextResponse.json({
       success: true,
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     const db = getDatabase();
     
     // 获取当前最大排序顺序
-    const maxSortResult = db.prepare('SELECT MAX(排序顺序) as maxSort FROM projects').get() as { maxSort: number | null };
+    const maxSortResult = await db.prepare('SELECT MAX(排序顺序) as maxSort FROM projects').get() as { maxSort: number | null };
     const nextSortOrder = (maxSortResult.maxSort || 0) + 1;
     
     const stmt = db.prepare(`
