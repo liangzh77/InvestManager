@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, calculateProjectStats } from '@/lib/database';
 import { Project } from '@/lib/types';
+import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 
 // GET - 获取单个项目
 export async function GET(
@@ -31,7 +32,9 @@ export async function GET(
       data: project
     });
   } catch (error) {
+    const errorMsg = `获取项目失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('获取项目错误:', error);
+    ServerErrorLogger.addError(errorMsg, 'Projects API');
     return NextResponse.json(
       { success: false, error: '获取项目失败' },
       { status: 500 }
@@ -83,7 +86,7 @@ export async function PUT(
       data.交易类型 || null,
       data.当前价 || null,
       data.状态 || null,
-      data.状态,
+      data.状态 || null,
       id
     );
 
@@ -124,7 +127,9 @@ export async function PUT(
       data: updatedProject
     });
   } catch (error) {
+    const errorMsg = `更新项目失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('更新项目错误:', error);
+    ServerErrorLogger.addError(errorMsg, 'Projects API');
     return NextResponse.json(
       { success: false, error: '更新项目失败' },
       { status: 500 }
@@ -176,7 +181,9 @@ export async function DELETE(
       message: '项目删除成功'
     });
   } catch (error) {
+    const errorMsg = `删除项目失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('删除项目错误:', error);
+    ServerErrorLogger.addError(errorMsg, 'Projects API');
     return NextResponse.json(
       { success: false, error: '删除项目失败' },
       { status: 500 }
