@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, calculateTransactionDistance, calculateProjectStats } from '@/lib/database';
 import { Transaction } from '@/lib/types';
+import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 
 // GET - 获取单个交易
 export async function GET(
@@ -31,7 +32,9 @@ export async function GET(
       data: transaction
     });
   } catch (error) {
+    const errorMsg = `获取交易失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('获取交易错误:', error);
+    ServerErrorLogger.addError(errorMsg, 'Transactions API');
     return NextResponse.json(
       { success: false, error: '获取交易失败' },
       { status: 500 }
@@ -173,7 +176,9 @@ export async function PUT(
       data: updatedTransaction
     });
   } catch (error) {
+    const errorMsg = `更新交易失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('更新交易错误:', error);
+    ServerErrorLogger.addError(errorMsg, 'Transactions API');
     return NextResponse.json(
       { success: false, error: '更新交易失败' },
       { status: 500 }
@@ -229,7 +234,9 @@ export async function DELETE(
       message: '交易删除成功'
     });
   } catch (error) {
+    const errorMsg = `删除交易失败: ${error instanceof Error ? error.message : String(error)}`;
     console.error('删除交易错误:', error);
+    ServerErrorLogger.addError(errorMsg, 'Transactions API');
     return NextResponse.json(
       { success: false, error: '删除交易失败' },
       { status: 500 }
