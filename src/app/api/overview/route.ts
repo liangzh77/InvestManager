@@ -68,15 +68,16 @@ export async function GET() {
     await db.prepare(`
       INSERT OR REPLACE INTO overview (
         id, 总金额, 成本金额, 持仓金额, 盈亏金额, 盈亏率, 仓位, 更新时间
-      ) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run([
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    `).run(
+      1,
       overview.总金额,
       overview.成本金额,
       overview.持仓金额,
       overview.盈亏金额,
       overview.盈亏率,
       overview.仓位
-    ]);
+    );
 
     return NextResponse.json({
       success: true,
@@ -145,8 +146,9 @@ export async function PUT(request: NextRequest) {
     const updateResult = await db.prepare(`
       INSERT OR REPLACE INTO overview (
         id, 总金额, 成本金额, 持仓金额, 盈亏金额, 盈亏率, 仓位, 更新时间
-      ) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     `).run(
+      1,
       总金额,
       projectStats.总成本金额,
       projectStats.总当前金额,
