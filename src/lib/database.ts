@@ -17,6 +17,9 @@ export function getDatabase() {
   } else if (isVercelEnvironment) {
     // Vercel环境使用Postgres
     return getVercelDatabase();
+  } else if (process.env.VERCEL) {
+    // Vercel环境但没有配置Postgres，抛出明确的错误
+    throw new Error('Vercel environment detected but no PostgreSQL database configured. Please add POSTGRES_URL environment variable.');
   } else {
     // 本地开发使用SQLite
     return getSQLiteDatabase();
@@ -29,6 +32,8 @@ export async function calculateProjectStats(projectId: number, db?: any) {
     return await calculateProjectStatsTurso(projectId, db || getTursoDatabase());
   } else if (isVercelEnvironment) {
     return await calculateProjectStatsVercel(projectId);
+  } else if (process.env.VERCEL) {
+    throw new Error('Vercel environment detected but no PostgreSQL database configured. Please add POSTGRES_URL environment variable.');
   } else {
     return calculateProjectStatsSQLite(projectId, db || getSQLiteDatabase());
   }
@@ -40,6 +45,8 @@ export function calculateTransactionDistance(transaction: any, currentPrice: num
     return calculateTransactionDistanceTurso(transaction, currentPrice);
   } else if (isVercelEnvironment) {
     return calculateTransactionDistanceVercel(transaction, currentPrice);
+  } else if (process.env.VERCEL) {
+    throw new Error('Vercel environment detected but no PostgreSQL database configured. Please add POSTGRES_URL environment variable.');
   } else {
     return calculateTransactionDistanceSQLite(transaction, currentPrice);
   }
@@ -51,6 +58,8 @@ export async function initializeDatabase() {
     await initializeTursoDatabase();
   } else if (isVercelEnvironment) {
     await initializeVercelDatabase();
+  } else if (process.env.VERCEL) {
+    throw new Error('Vercel environment detected but no PostgreSQL database configured. Please add POSTGRES_URL environment variable.');
   } else {
     // SQLite在getDatabase()时自动初始化
     getSQLiteDatabase();
