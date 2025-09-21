@@ -33,11 +33,13 @@ class ApiCache {
   }
 
   invalidatePattern(pattern: string): void {
-    for (const key of this.cache.keys()) {
+    const keysToDelete: string[] = [];
+    this.cache.forEach((_, key) => {
       if (key.includes(pattern)) {
-        this.cache.delete(key);
+        keysToDelete.push(key);
       }
-    }
+    });
+    keysToDelete.forEach(key => this.cache.delete(key));
   }
 
   clear(): void {
@@ -46,9 +48,11 @@ class ApiCache {
 
   // Get cache stats for debugging
   getStats(): { size: number; keys: string[] } {
+    const keys: string[] = [];
+    this.cache.forEach((_, key) => keys.push(key));
     return {
       size: this.cache.size,
-      keys: Array.from(this.cache.keys())
+      keys
     };
   }
 }

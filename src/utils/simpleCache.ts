@@ -47,12 +47,16 @@ export function cachedFetch(url: string, ttl: number = 15000): Promise<any> {
 // 清除缓存的助手函数
 export function clearCache(pattern?: string) {
   if (pattern) {
-    for (const key of cache.keys()) {
+    const keysToDelete: string[] = [];
+    cache.forEach((_, key) => {
       if (key.includes(pattern)) {
-        cache.delete(key);
-        console.log(`🗑️ CACHE CLEARED: ${key}`);
+        keysToDelete.push(key);
       }
-    }
+    });
+    keysToDelete.forEach(key => {
+      cache.delete(key);
+      console.log(`🗑️ CACHE CLEARED: ${key}`);
+    });
   } else {
     cache.clear();
     console.log(`🗑️ ALL CACHE CLEARED`);

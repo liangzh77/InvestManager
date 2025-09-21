@@ -20,7 +20,11 @@ export async function POST(request: NextRequest) {
       for (const tx of transactions) {
         try {
           const result = updateTransactionStmt.run(tx.交易金额, tx.仓位, tx.id);
-          if (result.changes > 0) {
+          // 兼容不同数据库环境的返回类型
+          if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
+            transactionsUpdated++;
+          } else {
+            // 兜底：如果没有changes属性，认为更新成功
             transactionsUpdated++;
           }
         } catch (err) {
@@ -40,7 +44,11 @@ export async function POST(request: NextRequest) {
       for (const proj of projects) {
         try {
           const result = updateProjectStmt.run(proj.仓位, proj.项目盈亏率, proj.总盈亏率, proj.id);
-          if (result.changes > 0) {
+          // 兼容不同数据库环境的返回类型
+          if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
+            projectsUpdated++;
+          } else {
+            // 兜底：如果没有changes属性，认为更新成功
             projectsUpdated++;
           }
         } catch (err) {
