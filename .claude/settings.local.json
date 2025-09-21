@@ -29,7 +29,8 @@
       "Bash(start http://localhost:3003/dashboard)",
       "Bash(find:*)",
       "Bash(npm uninstall:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

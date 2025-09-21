@@ -1,14 +1,19 @@
-// 数据库适配器 - 根据环境自动选择SQLite或Vercel Postgres
+// 数据库适配器 - 根据环境自动选择SQLite、Turso或Vercel Postgres
 
 import { getDatabase as getSQLiteDatabase, calculateProjectStats as calculateProjectStatsSQLite, calculateTransactionDistance as calculateTransactionDistanceSQLite } from './db';
 import { getVercelDatabase, calculateProjectStatsVercel, calculateTransactionDistanceVercel, initializeVercelDatabase } from './db-vercel';
+import { getTursoDatabase, calculateProjectStatsTurso, calculateTransactionDistanceTurso, initializeTursoDatabase } from './db-turso';
 
-// 判断是否在Vercel环境
+// 判断使用哪种数据库
+const isTursoEnvironment = process.env.TURSO_DATABASE_URL && process.env.TURSO_AUTH_TOKEN;
 const isVercelEnvironment = process.env.VERCEL || process.env.NODE_ENV === 'production';
 
 // 获取适当的数据库实例
 export function getDatabase() {
-  if (isVercelEnvironment) {
+  if (isTursoEnvironment) {
+    // 如果配置了Turso环境变量，优先使用Turso
+    return getTursoDatabase();
+  } else if (isVercelEnvironment) {
     // Vercel环境使用Postgres
     return getVercelDatabase();
   } else {
@@ -19,7 +24,9 @@ export function getDatabase() {
 
 // 计算项目统计
 export async function calculateProjectStats(projectId: number, db?: any) {
-  if (isVercelEnvironment) {
+  if (isTursoEnvironment) {
+    return await calculateProjectStatsTurso(projectId, db || getTursoDatabase());
+  } else if (isVercelEnvironment) {
     return await calculateProjectStatsVercel(projectId);
   } else {
     return calculateProjectStatsSQLite(projectId, db || getSQLiteDatabase());
@@ -28,7 +35,9 @@ export async function calculateProjectStats(projectId: number, db?: any) {
 
 // 计算交易距离
 export function calculateTransactionDistance(transaction: any, currentPrice: number) {
-  if (isVercelEnvironment) {
+  if (isTursoEnvironment) {
+    return calculateTransactionDistanceTurso(transaction, currentPrice);
+  } else if (isVercelEnvironment) {
     return calculateTransactionDistanceVercel(transaction, currentPrice);
   } else {
     return calculateTransactionDistanceSQLite(transaction, currentPrice);
@@ -37,7 +46,9 @@ export function calculateTransactionDistance(transaction: any, currentPrice: num
 
 // 数据库初始化
 export async function initializeDatabase() {
-  if (isVercelEnvironment) {
+  if (isTursoEnvironment) {
+    await initializeTursoDatabase();
+  } else if (isVercelEnvironment) {
     await initializeVercelDatabase();
   } else {
     // SQLite在getDatabase()时自动初始化
@@ -46,4 +57,4 @@ export async function initializeDatabase() {
 }
 
 // 导出环境标识
-export { isVercelEnvironment };
+export { isTursoEnvironment, isVercelEnvironment };
