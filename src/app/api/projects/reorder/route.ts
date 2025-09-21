@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/database';
+import { getDatabase, isTursoEnvironment, isVercelEnvironment } from '@/lib/database';
 
 // POST - 更新项目排序
 export async function POST(request: NextRequest) {
@@ -15,17 +15,24 @@ export async function POST(request: NextRequest) {
 
     const db = getDatabase();
 
-    // 使用事务确保数据一致性
-    const updateTransaction = db.transaction(async () => {
+    if (isTursoEnvironment || isVercelEnvironment) {
+      // 异步数据库：Turso 或 Vercel Postgres
       for (const project of projects as { id: number; 排序顺序: number }[]) {
         await db.prepare('UPDATE projects SET 排序顺序 = ? WHERE id = ?').run(
           project.排序顺序,
           project.id
         );
       }
-    });
-
-    await updateTransaction();
+    } else {
+      // 同步数据库：本地 SQLite (better-sqlite3)
+      const updateTransaction = db.transaction(() => {
+        const updateStmt = db.prepare('UPDATE projects SET 排序顺序 = ? WHERE id = ?');
+        for (const project of projects as { id: number; 排序顺序: number }[]) {
+          updateStmt.run(project.排序顺序, project.id);
+        }
+      });
+      updateTransaction();
+    }
 
     return NextResponse.json({
       success: true,

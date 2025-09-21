@@ -34,7 +34,9 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(start http://localhost:3005/dashboard)",
-      "WebFetch(domain:invest-manager-orcin.vercel.app)"
+      "WebFetch(domain:invest-manager-orcin.vercel.app)",
+      "Bash(start http://localhost:3001/dashboard)",
+      "Bash(start http://localhost:3006/projects)"
     ],
     "deny": [],
     "ask": []
