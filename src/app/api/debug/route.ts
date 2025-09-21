@@ -39,9 +39,60 @@ export async function GET() {
       debug.tables.overview = { exists: false, error: (error as Error).message };
     }
 
+    // 额外测试：尝试执行overview API的关键查询
+    let overviewTest = {};
+    try {
+      // 测试overview表查询
+      const existingOverview = await db.prepare('SELECT 总金额 FROM overview WHERE id = 1').get() as any;
+      overviewTest = {
+        existingOverview: existingOverview,
+        保存的总金额: existingOverview?.总金额 || 0,
+        step1: 'overview表查询成功'
+      };
+
+      // 测试项目统计查询
+      const projectStats = await db.prepare(`
+        SELECT
+          COALESCE(SUM(成本金额), 0) as 总成本金额,
+          COALESCE(SUM(当前金额), 0) as 总当前金额,
+          COALESCE(SUM(盈亏金额), 0) as 总盈亏金额,
+          COUNT(*) as 项目总数,
+          COUNT(CASE WHEN 状态 = '进行' THEN 1 END) as 进行中项目,
+          COUNT(CASE WHEN 状态 = '完成' THEN 1 END) as 已完成项目
+        FROM projects
+      `).get() as any;
+
+      overviewTest = {
+        ...overviewTest,
+        projectStats,
+        step2: '项目统计查询成功'
+      };
+
+      // 测试交易统计查询
+      const recentTransactions = await db.prepare(`
+        SELECT COUNT(*) as 交易总数,
+          COUNT(CASE WHEN 状态 = '计划' THEN 1 END) as 计划中交易,
+          COUNT(CASE WHEN 状态 = '完成' THEN 1 END) as 已完成交易
+        FROM transactions
+      `).get() as any;
+
+      overviewTest = {
+        ...overviewTest,
+        recentTransactions,
+        step3: '交易统计查询成功'
+      };
+
+    } catch (testError) {
+      overviewTest = {
+        error: (testError as Error).message,
+        stack: (testError as Error).stack
+      };
+    }
+
     return NextResponse.json({
       success: true,
-      debug
+      debug,
+      overviewTest
     });
   } catch (error) {
     return NextResponse.json({
