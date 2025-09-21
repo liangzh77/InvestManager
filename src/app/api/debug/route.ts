@@ -52,21 +52,41 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
     console.log('手动初始化数据库...');
+
+    // 先检查当前环境
+    const envInfo = {
+      VERCEL: !!process.env.VERCEL,
+      TURSO_DATABASE_URL: !!process.env.TURSO_DATABASE_URL,
+      TURSO_AUTH_TOKEN: !!process.env.TURSO_AUTH_TOKEN,
+      isTursoEnvironment,
+      isVercelEnvironment
+    };
+
+    console.log('环境信息:', envInfo);
+
     await initializeDatabase();
 
     return NextResponse.json({
       success: true,
-      message: '数据库初始化完成'
+      message: '数据库初始化完成',
+      environment: envInfo
     });
   } catch (error) {
     console.error('数据库初始化失败:', error);
     return NextResponse.json({
       success: false,
       error: (error as Error).message,
-      stack: (error as Error).stack
+      stack: (error as Error).stack,
+      environment: {
+        VERCEL: !!process.env.VERCEL,
+        TURSO_DATABASE_URL: !!process.env.TURSO_DATABASE_URL,
+        TURSO_AUTH_TOKEN: !!process.env.TURSO_AUTH_TOKEN,
+        isTursoEnvironment,
+        isVercelEnvironment
+      }
     }, { status: 500 });
   }
 }
