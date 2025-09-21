@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, calculateProjectStats } from '@/lib/db-vercel';
+import { getDatabase, calculateProjectStats } from '@/lib/database';
 import { Project } from '@/lib/types';
 import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 

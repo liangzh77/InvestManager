@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/db-vercel';
+import { getDatabase } from '@/lib/database';
 import { ServerErrorLogger } from '@/utils/serverErrorLogger';
 
 // GET - 获取总览统计
@@ -69,14 +69,14 @@ export async function GET() {
       INSERT OR REPLACE INTO overview (
         id, 总金额, 成本金额, 持仓金额, 盈亏金额, 盈亏率, 仓位, 更新时间
       ) VALUES (1, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `).run(
+    `).run([
       overview.总金额,
       overview.成本金额,
       overview.持仓金额,
       overview.盈亏金额,
       overview.盈亏率,
       overview.仓位
-    );
+    ]);
 
     return NextResponse.json({
       success: true,

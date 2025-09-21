@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase, calculateTransactionDistance, calculateProjectStats } from '@/lib/db-vercel';
+import { getDatabase, calculateTransactionDistance, calculateProjectStats } from '@/lib/database';
 import { Transaction } from '@/lib/types';
 
 // GET - 获取单个交易

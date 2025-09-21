@@ -2,7 +2,8 @@
   "buildCommand": "npm run build",
   "functions": {
     "src/app/api/**/*.ts": {
-      "runtime": "nodejs18.x"
+      "runtime": "nodejs18.x",
+      "maxDuration": 30
     }
   },
   "rewrites": [
@@ -10,5 +11,8 @@
       "source": "/api/(.*)",
       "destination": "/api/$1"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
 }

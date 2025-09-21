@@ -1,26 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
-import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
-import path from 'path';
-
-const DB_PATH = path.join(process.cwd(), 'data', 'investment.db');
+import { getDatabase } from '@/lib/database';
 
 export async function POST(request: NextRequest) {
-  let db;
-
   try {
-    // 打开数据库连接
-    db = await open({
-      filename: DB_PATH,
-      driver: sqlite3.Database
-    });
+    const db = getDatabase();
 
     // 获取所有进行中的项目
-    const activeProjects = await db.all(`
+    const activeProjects = db.prepare(`
       SELECT id, 项目名称, 项目代号
       FROM projects
       WHERE 状态 = '进行'
-    `);
+    `).all();
 
     if (activeProjects.length === 0) {
       return NextResponse.json({
@@ -32,7 +22,7 @@ export async function POST(request: NextRequest) {
     const results: { [key: string]: { success: boolean, price?: number, error?: string } } = {};
 
     // 为每个项目获取股价并更新数据库
-    for (const project of activeProjects) {
+    for (const project of activeProjects as any[]) {
       const symbol = project.项目代号;
 
       if (!symbol) {
@@ -52,11 +42,11 @@ export async function POST(request: NextRequest) {
         }
 
         // 更新数据库中的当前价
-        await db.run(`
+        db.prepare(`
           UPDATE projects
           SET 当前价 = ?
           WHERE id = ?
-        `, [price, project.id]);
+        `).run(price, project.id);
 
         // 打印股价到终端用于调试
         console.log(`[股价更新] ${project.项目名称} (${symbol}): ${price}`);
@@ -80,10 +70,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('更新价格失败:', error);
     return NextResponse.json({ success: false, error: '服务器错误' }, { status: 500 });
-  } finally {
-    if (db) {
-      await db.close();
-    }
   }
 }
 

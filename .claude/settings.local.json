@@ -27,7 +27,9 @@
       "Bash(start http://localhost:3002/plans)",
       "Bash(start http://localhost:3003)",
       "Bash(start http://localhost:3003/dashboard)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(git restore:*)"
     ],
     "deny": [],
     "ask": []
