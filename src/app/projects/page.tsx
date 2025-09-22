@@ -437,7 +437,28 @@ export default function ProjectsPage() {
         }
 
         // 刷新项目数据以获取最新股价
-        await fetchProjects();
+        const data = await api.projects();
+        if (data.success) {
+          const sortedProjects = data.data.sort((a: Project, b: Project) =>
+            (a.排序顺序 || 0) - (b.排序顺序 || 0)
+          );
+
+          // 立即重新计算所有项目的盈亏等派生字段
+          const updatedProjects = sortedProjects.map((project: Project) => {
+            const projectTransactions = transactions[project.id] || [];
+            const metrics = calculateProjectMetrics(projectTransactions, project.当前价 || 0, totalAmount || 100000);
+
+            return {
+              ...project,
+              当前金额: metrics.当前金额,
+              盈亏金额: metrics.盈亏金额,
+              项目盈亏率: metrics.项目盈亏率,
+              总盈亏率: metrics.总盈亏率,
+            };
+          });
+
+          setProjects(updatedProjects);
+        }
       } else {
         const errorMsg = '股价查询失败';
         console.error(errorMsg);
