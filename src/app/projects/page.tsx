@@ -436,26 +436,67 @@ export default function ProjectsPage() {
           });
         }
 
-        // 刷新项目数据以获取最新股价
+        // 清除缓存并刷新项目数据以获取最新股价
+        api.clearProjects();
         const data = await api.projects();
         if (data.success) {
           const sortedProjects = data.data.sort((a: Project, b: Project) =>
             (a.排序顺序 || 0) - (b.排序顺序 || 0)
           );
 
+          // 检查是否有股价变化
+          let hasPriceChanges = false;
+          const projectUpdates: { [id: number]: Partial<Project> } = {};
+
           // 立即重新计算所有项目的盈亏等派生字段
           const updatedProjects = sortedProjects.map((project: Project) => {
+            const oldProject = projects.find(p => p.id === project.id);
             const projectTransactions = transactions[project.id] || [];
             const metrics = calculateProjectMetrics(projectTransactions, project.当前价 || 0, totalAmount || 100000);
 
-            return {
-              ...project,
-              当前金额: metrics.当前金额,
-              盈亏金额: metrics.盈亏金额,
-              项目盈亏率: metrics.项目盈亏率,
-              总盈亏率: metrics.总盈亏率,
-            };
+            // 检查当前价是否有变化
+            if (oldProject && oldProject.当前价 !== project.当前价) {
+              hasPriceChanges = true;
+              projectUpdates[project.id] = {
+                当前价: project.当前价,
+                当前金额: metrics.当前金额,
+                盈亏金额: metrics.盈亏金额,
+                项目盈亏率: metrics.项目盈亏率,
+                总盈亏率: metrics.总盈亏率,
+              };
+
+              // 有价格变化，保持原当前价，但更新其他计算字段
+              return {
+                ...oldProject,
+                当前金额: metrics.当前金额,
+                盈亏金额: metrics.盈亏金额,
+                项目盈亏率: metrics.项目盈亏率,
+                总盈亏率: metrics.总盈亏率,
+              };
+            } else {
+              // 没有价格变化或oldProject不存在，正常更新
+              return {
+                ...project,
+                当前金额: metrics.当前金额,
+                盈亏金额: metrics.盈亏金额,
+                项目盈亏率: metrics.项目盈亏率,
+                总盈亏率: metrics.总盈亏率,
+              };
+            }
           });
+
+          // 如果有股价变化，设置本地修改标记
+          if (hasPriceChanges) {
+            setPendingChanges(prev => ({
+              ...prev,
+              projects: {
+                ...prev.projects,
+                ...projectUpdates
+              }
+            }));
+            setHasLocalChanges(true);
+            console.log('🔄 检测到股价变化，已设置为待提交状态');
+          }
 
           setProjects(updatedProjects);
         }
@@ -922,6 +963,15 @@ export default function ProjectsPage() {
     return value === null || value === undefined;
   };
 
+  // 获取项目字段的实际显示值（考虑本地修改）
+  const getProjectFieldValue = (projectId: number, fieldName: string, defaultValue: any) => {
+    const pendingProjectChanges = pendingChanges.projects[projectId];
+    if (pendingProjectChanges && pendingProjectChanges.hasOwnProperty(fieldName)) {
+      return pendingProjectChanges[fieldName];
+    }
+    return defaultValue;
+  };
+
   // 处理交易拖拽结束
   const handleTransactionDragEnd = async (event: DragEndEvent, projectId: number) => {
     const { active, over } = event;
@@ -1288,7 +1338,7 @@ export default function ProjectsPage() {
                       '****'
                     ) : (
                       <InlineEditNumber
-                        value={project.当前价 || 0}
+                        value={getProjectFieldValue(project.id, '当前价', project.当前价 || 0)}
                         onChange={(value) => updateProject(project.id, '当前价', value)}
                         precision={2}
                       />

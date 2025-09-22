@@ -47,9 +47,10 @@ export default function Dashboard() {
   const fetchOverviewData = async () => {
     try {
       setLoading(true)
-      const [overviewResult, projectsResult] = await Promise.all([
+      const [overviewResult, projectsResult, transactionsResult] = await Promise.all([
         cachedApiCalls.overview(),
-        cachedApiCalls.projects()
+        cachedApiCalls.projects(),
+        cachedApiCalls.transactions()
       ])
 
       if (overviewResult.success) {
@@ -59,10 +60,20 @@ export default function Dashboard() {
         setError(overviewResult.error || '获取总览数据失败')
       }
 
-      if (projectsResult.success) {
-        setProjects(projectsResult.data || [])
+      if (projectsResult.success && transactionsResult.success) {
+        const allProjects = projectsResult.data || []
+        const allTransactions = transactionsResult.data || []
+
+        // 过滤出有完成交易的项目
+        const projectsWithCompletedTransactions = allProjects.filter((project: ProjectData) => {
+          return allTransactions.some((transaction: any) =>
+            transaction.项目ID === project.id && transaction.状态 === '完成'
+          )
+        })
+
+        setProjects(projectsWithCompletedTransactions)
       } else {
-        console.error('获取项目数据失败:', projectsResult.error)
+        console.error('获取项目或交易数据失败:', projectsResult.error, transactionsResult.error)
       }
     } catch (err) {
       setError('网络错误')
