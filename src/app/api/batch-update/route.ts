@@ -3,13 +3,73 @@ import { getDatabase } from '@/lib/database';
 
 export async function POST(request: NextRequest) {
   try {
-    const { transactions, projects } = await request.json();
+    const {
+      transactions,
+      projects,
+      deletedTransactions,
+      newTransactions
+    } = await request.json();
     const db = getDatabase();
 
     let transactionsUpdated = 0;
     let projectsUpdated = 0;
+    let transactionsDeleted = 0;
+    let transactionsCreated = 0;
 
-    // 批量更新交易 - 支持更多字段
+    // 1. 批量删除交易
+    if (deletedTransactions && deletedTransactions.length > 0) {
+      const deleteTransactionStmt = db.prepare('DELETE FROM transactions WHERE id = ?');
+
+      for (const transactionId of deletedTransactions) {
+        try {
+          const result = deleteTransactionStmt.run(transactionId);
+          if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
+            transactionsDeleted++;
+          }
+        } catch (err) {
+          console.error(`删除交易 ${transactionId} 失败:`, err);
+        }
+      }
+    }
+
+    // 2. 批量创建新交易
+    if (newTransactions && newTransactions.length > 0) {
+      const createTransactionStmt = db.prepare(`
+        INSERT INTO transactions (
+          项目ID, 项目名称, 状态, 交易名称, 交易类型, 警告方向,
+          距离, 交易价, 股数, 仓位, 交易金额, 创建时间, 排序顺序
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const newTx of newTransactions) {
+        try {
+          const result = createTransactionStmt.run(
+            newTx.项目ID,
+            newTx.项目名称,
+            newTx.状态,
+            newTx.交易名称,
+            newTx.交易类型,
+            newTx.警告方向,
+            newTx.距离,
+            newTx.交易价,
+            newTx.股数,
+            newTx.仓位,
+            newTx.交易金额,
+            newTx.创建时间,
+            newTx.排序顺序
+          );
+          if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
+            transactionsCreated++;
+          } else {
+            transactionsCreated++;
+          }
+        } catch (err) {
+          console.error(`创建交易失败:`, err);
+        }
+      }
+    }
+
+    // 3. 批量更新交易 - 支持更多字段
     if (transactions && transactions.length > 0) {
       const updateTransactionStmt = db.prepare(`
         UPDATE transactions
@@ -107,12 +167,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`✅ 批量更新完成: ${transactionsUpdated}个交易, ${projectsUpdated}个项目`);
+    console.log(`✅ 批量操作完成: 删除${transactionsDeleted}个交易, 创建${transactionsCreated}个交易, 更新${transactionsUpdated}个交易, 更新${projectsUpdated}个项目`);
 
     return NextResponse.json({
       success: true,
-      message: `批量更新成功: ${transactionsUpdated}个交易, ${projectsUpdated}个项目`,
+      message: `批量操作成功: 删除${transactionsDeleted}个交易, 创建${transactionsCreated}个交易, 更新${transactionsUpdated}个交易, 更新${projectsUpdated}个项目`,
       data: {
+        transactionsDeleted,
+        transactionsCreated,
         transactionsUpdated,
         projectsUpdated
       }

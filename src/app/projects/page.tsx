@@ -77,8 +77,10 @@ export default function ProjectsPage() {
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
   const [pendingChanges, setPendingChanges] = useState<{
     projects: { [id: number]: Partial<Project> },
-    transactions: { [id: number]: Partial<Transaction> }
-  }>({ projects: {}, transactions: {} });
+    transactions: { [id: number]: Partial<Transaction> },
+    deletedTransactions: number[],
+    newTransactions: Transaction[]
+  }>({ projects: {}, transactions: {}, deletedTransactions: [], newTransactions: [] });
 
   const pageErrorLogger = getPageErrorLogger('projects');
 
@@ -469,22 +471,34 @@ export default function ProjectsPage() {
         ...pendingChanges.transactions[Number(id)]
       }));
 
+      // 准备新交易数据（移除临时ID）
+      const newTransactionsToCreate = pendingChanges.newTransactions.map(({ id, ...transaction }) => transaction);
+
       // 调用批量更新API
       const response = await fetch('/api/batch-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transactions: transactionsToUpdate,
-          projects: projectsToUpdate
+          projects: projectsToUpdate,
+          deletedTransactions: pendingChanges.deletedTransactions,
+          newTransactions: newTransactionsToCreate
         }),
       });
 
       const result = await response.json();
       if (result.success) {
-        console.log(`✅ 提交成功: ${result.data.transactionsUpdated}个交易, ${result.data.projectsUpdated}个项目`);
+        const totalOperations =
+          (result.data.transactionsDeleted || 0) +
+          (result.data.transactionsCreated || 0) +
+          (result.data.transactionsUpdated || 0) +
+          (result.data.projectsUpdated || 0);
+
+        console.log(`✅ 提交完成: 共 ${totalOperations} 个操作`);
+        console.log(result.message);
 
         // 清空本地修改
-        setPendingChanges({ projects: {}, transactions: {} });
+        setPendingChanges({ projects: {}, transactions: {}, deletedTransactions: [], newTransactions: [] });
         setHasLocalChanges(false);
 
         // 清除相关缓存
@@ -492,13 +506,14 @@ export default function ProjectsPage() {
         api.clearTransactions();
         api.clearOverview();
 
-        // 刷新总金额
-        fetchTotalAmount();
+        // 重新加载数据
+        Promise.all([fetchProjects(), fetchAllTransactions(), fetchTotalAmount()]);
       } else {
         const errorMsg = `提交失败: ${result.error}`;
         console.error(errorMsg);
         pageErrorLogger.addError(errorMsg);
       }
+
     } catch (error) {
       const errorMsg = `提交失败: ${error instanceof Error ? error.message : String(error)}`;
       console.error(errorMsg);
@@ -704,78 +719,67 @@ export default function ProjectsPage() {
   };
 
   // 删除交易记录
-  const deleteTransaction = async (transactionId: number, projectId: number) => {
-    if (!confirm('确定要删除这条交易记录吗？')) {
-      return;
+  const deleteTransaction = (transactionId: number, projectId: number) => {
+    // 如果是新增的交易（临时ID为负数），直接从newTransactions中移除
+    if (transactionId < 0) {
+      setPendingChanges(prev => ({
+        ...prev,
+        newTransactions: prev.newTransactions.filter(t => t.id !== transactionId)
+      }));
+    } else {
+      // 如果是已存在的交易，记录到删除列表
+      setPendingChanges(prev => ({
+        ...prev,
+        deletedTransactions: [...prev.deletedTransactions, transactionId]
+      }));
     }
 
-    try {
-      const response = await fetch(`/api/transactions/${transactionId}`, {
-        method: 'DELETE',
-      });
+    // 从本地状态中移除交易记录
+    setTransactions(prev => ({
+      ...prev,
+      [projectId]: prev[projectId]?.filter(t => t.id !== transactionId) || []
+    }));
 
-      const data = await response.json();
-      if (data.success) {
-        // 从本地状态中移除交易记录
-        setTransactions(prev => ({
-          ...prev,
-          [projectId]: prev[projectId]?.filter(t => t.id !== transactionId) || []
-        }));
-
-        // 重新获取项目数据和交易数据以更新计算字段
-        Promise.all([fetchProjects(), fetchAllTransactions()]);
-
-        // 重新获取总金额
-        fetchTotalAmount();
-      } else {
-        console.error('删除交易失败:', data.error);
-        alert('删除失败，请重试');
-      }
-    } catch (error) {
-      console.error('删除交易失败:', error);
-      alert('删除失败，请重试');
-    }
+    // 标记有本地修改
+    setHasLocalChanges(true);
   };
 
   // 创建新交易记录
-  const createTransaction = async (projectId: number) => {
-    try {
-      const response = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          项目ID: projectId,
-          项目名称: projects.find(p => p.id === projectId)?.项目名称 || '',
-          状态: '计划',
-          交易名称: '新交易',
-          交易类型: '做多',
-          警告方向: '向上',
-          距离: 0,
-          交易价: 0,
-          股数: 0,
-          仓位: 0,
-          交易金额: 0,
-          排序顺序: (transactions[projectId]?.length || 0)
-        }),
-      });
+  const createTransaction = (projectId: number) => {
+    // 生成临时ID（负数，避免与真实ID冲突）
+    const tempId = -Date.now();
 
-      const data = await response.json();
-      if (data.success) {
-        // 将新交易添加到本地状态
-        setTransactions(prev => ({
-          ...prev,
-          [projectId]: [...(prev[projectId] || []), data.data]
-        }));
-      } else {
-        console.error('创建交易失败:', data.error);
-        alert('创建交易失败，请重试');
-      }
-    } catch (error) {
-      console.error('创建交易失败:', error);
-      alert('创建交易失败，请重试');
-    }
+    const newTransaction: Transaction = {
+      id: tempId,
+      项目ID: projectId,
+      项目名称: projects.find(p => p.id === projectId)?.项目名称 || '',
+      状态: '计划',
+      交易名称: '新交易',
+      交易类型: '做多',
+      警告方向: '向上',
+      距离: 0,
+      交易价: 0,
+      股数: 0,
+      仓位: 0,
+      交易金额: 0,
+      创建时间: new Date().toISOString(),
+      排序顺序: (transactions[projectId]?.length || 0)
+    };
+
+    // 记录到新增交易列表
+    setPendingChanges(prev => ({
+      ...prev,
+      newTransactions: [...prev.newTransactions, newTransaction]
+    }));
+
+    // 将新交易添加到本地状态
+    setTransactions(prev => ({
+      ...prev,
+      [projectId]: [...(prev[projectId] || []), newTransaction]
+    }));
+
+    // 标记有本地修改
+    setHasLocalChanges(true);
   };
 
   // 删除项目
