@@ -967,7 +967,7 @@ export default function ProjectsPage() {
   const getProjectFieldValue = (projectId: number, fieldName: string, defaultValue: any) => {
     const pendingProjectChanges = pendingChanges.projects[projectId];
     if (pendingProjectChanges && pendingProjectChanges.hasOwnProperty(fieldName)) {
-      return pendingProjectChanges[fieldName];
+      return (pendingProjectChanges as any)[fieldName];
     }
     return defaultValue;
   };
