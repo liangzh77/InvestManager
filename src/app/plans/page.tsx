@@ -42,6 +42,11 @@ export default function PlansPage() {
   const [planTransactions, setPlanTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [hideValues, setHideValues] = useState(false);
+  const [hasLocalChanges, setHasLocalChanges] = useState(false);
+  const [pendingChanges, setPendingChanges] = useState<{
+    projects: { [id: number]: Partial<Project> },
+    transactions: { [id: number]: Partial<Transaction> }
+  }>({ projects: {}, transactions: {} });
 
   const pageErrorLogger = getPageErrorLogger('plans');
 
@@ -177,99 +182,93 @@ export default function PlansPage() {
     loadData();
   }, []);
 
-  // 更新交易信息
-  const updateTransaction = async (transactionId: number, field: string, value: any) => {
-    try {
-      const currentTransaction = planTransactions.find(t => t.id === transactionId);
-      if (!currentTransaction) {
-        console.error('找不到交易记录');
-        return;
-      }
-
-      const project = projects.find(p => p.id === currentTransaction.项目ID);
-      if (!project) {
-        console.error('找不到对应项目');
-        return;
-      }
-
-      const currentPrice = project.当前价 || 0;
-      const updateData: any = { [field]: value };
-
-      // 根据字段进行自动计算
-      switch (field) {
-        case '警告方向':
-          if (currentTransaction.交易价) {
-            updateData.距离 = calculateDistance(value, currentTransaction.交易价, currentPrice);
-          }
-          break;
-
-        case '距离':
-          if (currentTransaction.警告方向) {
-            updateData.交易价 = calculateTransactionPrice(currentTransaction.警告方向, value, currentPrice);
-          }
-          break;
-
-        case '交易价':
-          if (currentTransaction.警告方向) {
-            updateData.距离 = calculateDistance(currentTransaction.警告方向, value, currentPrice);
-          }
-          if (currentTransaction.股数) {
-            updateData.交易金额 = calculateTransactionAmount(currentTransaction.股数, value);
-            updateData.仓位 = calculatePosition(currentTransaction.股数, value, totalAmount);
-          }
-          break;
-
-        case '股数':
-          if (currentTransaction.交易价) {
-            updateData.交易金额 = calculateTransactionAmount(value, currentTransaction.交易价);
-          }
-          if (currentTransaction.交易价) {
-            updateData.仓位 = calculatePosition(value, currentTransaction.交易价, totalAmount);
-          }
-          break;
-
-        case '仓位':
-          if (currentTransaction.交易价) {
-            const newShares = calculateShares(value, totalAmount, currentTransaction.交易价);
-            updateData.股数 = newShares;
-            updateData.交易金额 = calculateTransactionAmount(newShares, currentTransaction.交易价);
-          }
-          break;
-
-        case '交易金额':
-          if (currentTransaction.交易价) {
-            const newShares = Math.round(value / currentTransaction.交易价);
-            updateData.股数 = newShares;
-            const calculatedPosition = (value / totalAmount) * 100;
-            updateData.仓位 = calculatedPosition;
-          }
-          break;
-      }
-
-      const response = await fetch(`/api/transactions/${transactionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updateData),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        // 更新本地状态
-        setPlanTransactions(prev => prev.map(t =>
-          t.id === transactionId ? { ...t, ...updateData } : t
-        ));
-      } else {
-        const errorMsg = `更新交易失败: ${data.error}`;
-        console.error(errorMsg);
-        pageErrorLogger.addError(errorMsg);
-      }
-    } catch (error) {
-      const errorMsg = `更新交易失败: ${error instanceof Error ? error.message : String(error)}`;
-      console.error(errorMsg);
-      pageErrorLogger.addError(errorMsg);
+  // 更新交易信息（本地修改）
+  const updateTransaction = (transactionId: number, field: string, value: any) => {
+    const currentTransaction = planTransactions.find(t => t.id === transactionId);
+    if (!currentTransaction) {
+      console.error('找不到交易记录');
+      return;
     }
+
+    const project = projects.find(p => p.id === currentTransaction.项目ID);
+    if (!project) {
+      console.error('找不到对应项目');
+      return;
+    }
+
+    const currentPrice = project.当前价 || 0;
+    const updateData: any = { [field]: value };
+
+    // 根据字段进行自动计算
+    switch (field) {
+      case '警告方向':
+        if (currentTransaction.交易价) {
+          updateData.距离 = calculateDistance(value, currentTransaction.交易价, currentPrice);
+        }
+        break;
+
+      case '距离':
+        if (currentTransaction.警告方向) {
+          updateData.交易价 = calculateTransactionPrice(currentTransaction.警告方向, value, currentPrice);
+        }
+        break;
+
+      case '交易价':
+        if (currentTransaction.警告方向) {
+          updateData.距离 = calculateDistance(currentTransaction.警告方向, value, currentPrice);
+        }
+        if (currentTransaction.股数) {
+          updateData.交易金额 = calculateTransactionAmount(currentTransaction.股数, value);
+          updateData.仓位 = calculatePosition(currentTransaction.股数, value, totalAmount);
+        }
+        break;
+
+      case '股数':
+        if (currentTransaction.交易价) {
+          updateData.交易金额 = calculateTransactionAmount(value, currentTransaction.交易价);
+        }
+        if (currentTransaction.交易价) {
+          updateData.仓位 = calculatePosition(value, currentTransaction.交易价, totalAmount);
+        }
+        break;
+
+      case '仓位':
+        if (currentTransaction.交易价) {
+          const newShares = calculateShares(value, totalAmount, currentTransaction.交易价);
+          updateData.股数 = newShares;
+          updateData.交易金额 = calculateTransactionAmount(newShares, currentTransaction.交易价);
+        }
+        break;
+
+      case '交易金额':
+        if (currentTransaction.交易价) {
+          const newShares = Math.round(value / currentTransaction.交易价);
+          updateData.股数 = newShares;
+          const calculatedPosition = (value / totalAmount) * 100;
+          updateData.仓位 = calculatedPosition;
+        }
+        break;
+    }
+
+    // 记录本地修改
+    Object.keys(updateData).forEach(key => {
+      setPendingChanges(prev => ({
+        ...prev,
+        transactions: {
+          ...prev.transactions,
+          [transactionId]: {
+            ...prev.transactions[transactionId],
+            [key]: updateData[key]
+          }
+        }
+      }));
+    });
+    setHasLocalChanges(true);
+
+    // 更新本地状态
+    setPlanTransactions(prev => prev.map(t =>
+      t.id === transactionId ? { ...t, ...updateData } : t
+    ));
   };
 
   // 计算函数
@@ -390,6 +389,95 @@ export default function PlansPage() {
     }
   };
 
+  // 查询股价（只获取股价数据，不调用其他API）
+  const queryStockPrices = async () => {
+    try {
+      console.log('🔍 开始查询股价...');
+      const priceUpdateRes = await fetch('/api/update-prices', { method: 'POST' });
+      const priceUpdateJson = await priceUpdateRes.json();
+
+      if (priceUpdateJson.success) {
+        console.log('股价查询结果:', priceUpdateJson.data);
+
+        // 检查具体的失败项目并记录错误
+        if (priceUpdateJson.data?.results) {
+          const results = priceUpdateJson.data.results;
+          Object.keys(results).forEach(projectName => {
+            const result = results[projectName];
+            if (!result.success) {
+              const errorMsg = `股价查询失败: ${projectName} - ${result.error}`;
+              pageErrorLogger.addError(errorMsg);
+            }
+          });
+        }
+
+        // 刷新项目数据以获取最新股价
+        await fetchProjects();
+      } else {
+        const errorMsg = '股价查询失败';
+        console.error(errorMsg);
+        pageErrorLogger.addError(errorMsg);
+      }
+    } catch (error) {
+      const errorMsg = `查询股价失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      pageErrorLogger.addError(errorMsg);
+    }
+  };
+
+  // 提交所有本地修改
+  const submitAllChanges = async () => {
+    if (!hasLocalChanges) {
+      console.log('没有需要提交的修改');
+      return;
+    }
+
+    try {
+      console.log('🚀 开始提交所有修改...');
+
+      // 准备提交数据
+      const projectsToUpdate = Object.keys(pendingChanges.projects).map(id => ({
+        id: Number(id),
+        ...pendingChanges.projects[Number(id)]
+      }));
+
+      const transactionsToUpdate = Object.keys(pendingChanges.transactions).map(id => ({
+        id: Number(id),
+        ...pendingChanges.transactions[Number(id)]
+      }));
+
+      // 调用批量更新API
+      const response = await fetch('/api/batch-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transactions: transactionsToUpdate,
+          projects: projectsToUpdate
+        }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        console.log(`✅ 提交成功: ${result.data.transactionsUpdated}个交易, ${result.data.projectsUpdated}个项目`);
+
+        // 清空本地修改
+        setPendingChanges({ projects: {}, transactions: {} });
+        setHasLocalChanges(false);
+
+        // 刷新总金额
+        fetchTotalAmount();
+      } else {
+        const errorMsg = `提交失败: ${result.error}`;
+        console.error(errorMsg);
+        pageErrorLogger.addError(errorMsg);
+      }
+    } catch (error) {
+      const errorMsg = `提交失败: ${error instanceof Error ? error.message : String(error)}`;
+      console.error(errorMsg);
+      pageErrorLogger.addError(errorMsg);
+    }
+  };
+
   // 数值隐藏/显示功能
   const formatValue = (value: number | null, suffix = '') => {
     if (value === null || value === undefined) return '-';
@@ -430,29 +518,25 @@ export default function PlansPage() {
     return project ? project.当前价 : 0;
   };
 
-  // 更新项目当前价
-  const updateProjectCurrentPrice = async (projectId: number, newPrice: number) => {
-    try {
-      const response = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 当前价: newPrice }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        // 更新本地项目状态
-        setProjects(prev => prev.map(p =>
-          p.id === projectId ? { ...p, 当前价: newPrice } : p
-        ));
-      } else {
-        console.error('更新项目当前价失败:', data.error);
+  // 更新项目当前价（本地修改）
+  const updateProjectCurrentPrice = (projectId: number, newPrice: number) => {
+    // 记录本地修改
+    setPendingChanges(prev => ({
+      ...prev,
+      projects: {
+        ...prev.projects,
+        [projectId]: {
+          ...prev.projects[projectId],
+          当前价: newPrice
+        }
       }
-    } catch (error) {
-      console.error('更新项目当前价失败:', error);
-    }
+    }));
+    setHasLocalChanges(true);
+
+    // 更新本地项目状态
+    setProjects(prev => prev.map(p =>
+      p.id === projectId ? { ...p, 当前价: newPrice } : p
+    ));
   };
 
   // 计算距离颜色
@@ -483,15 +567,27 @@ export default function PlansPage() {
             <PageErrorLogViewer pageId="plans" />
           </div>
           <button
-            onClick={refreshData}
-            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-            title="刷新数据"
+            onClick={queryStockPrices}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            title="查询最新股价"
           >
-            刷新
+            查询
+          </button>
+          <button
+            onClick={submitAllChanges}
+            className={`px-4 py-2 rounded transition-colors ${
+              hasLocalChanges
+                ? 'bg-red-500 text-white hover:bg-red-600'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+            disabled={!hasLocalChanges}
+            title={hasLocalChanges ? '提交所有修改到数据库' : '没有待提交的修改'}
+          >
+            提交 {hasLocalChanges && '●'}
           </button>
           <button
             onClick={toggleHideValues}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
           >
             {hideValues ? '显示' : '隐藏'}
           </button>

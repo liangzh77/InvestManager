@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // 同步数据库：本地 SQLite (better-sqlite3)
-      const updateTransaction = db.transaction(() => {
+      const updateTransaction = (db as any).transaction(() => {
         const updateStmt = db.prepare('UPDATE projects SET 排序顺序 = ? WHERE id = ?');
         for (const project of projects as { id: number; 排序顺序: number }[]) {
           updateStmt.run(project.排序顺序, project.id);
