@@ -252,18 +252,8 @@ export default function ProjectsPage() {
 
     loadData();
 
-    // 添加页面焦点事件监听，当用户重新聚焦页面时刷新总金额
-    const handleFocus = () => {
-      if (isMounted) {
-        fetchTotalAmount();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-
     return () => {
       isMounted = false;
-      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
