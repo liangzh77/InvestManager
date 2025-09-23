@@ -536,44 +536,25 @@ export default function ProjectsPage() {
       // 准备新交易数据（移除临时ID）
       const newTransactionsToCreate = pendingChanges.newTransactions.map(({ id, ...transaction }) => transaction);
 
-      // 调试信息
-      console.log('📋 待提交数据概览:', {
-        pendingChanges,
-        projectsToUpdate,
-        transactionsToUpdate,
-        newTransactionsToCreate,
-        deletedTransactions: pendingChanges.deletedTransactions
-      });
-
       // 调用批量更新API
-      console.log('📤 发送请求到 /api/batch-update...');
-
-      const requestBody = {
-        transactions: transactionsToUpdate,
-        projects: projectsToUpdate,
-        deletedTransactions: pendingChanges.deletedTransactions,
-        newTransactions: newTransactionsToCreate
-      };
-
-      console.log('📦 请求体内容:', requestBody);
-
       const response = await fetch('/api/batch-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          transactions: transactionsToUpdate,
+          projects: projectsToUpdate,
+          deletedTransactions: pendingChanges.deletedTransactions,
+          newTransactions: newTransactionsToCreate
+        }),
       });
 
-      console.log('📡 响应状态:', response.status, response.statusText);
-
       if (!response.ok) {
-        console.error('❌ API请求失败:', response.status, response.statusText);
         const errorText = await response.text();
-        console.error('❌ 错误详情:', errorText);
+        console.error('❌ API请求失败:', response.status, response.statusText, errorText);
         throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
       }
 
       const result = await response.json();
-      console.log('📥 API响应结果:', result);
       if (result.success) {
         const totalOperations =
           (result.data.transactionsDeleted || 0) +
@@ -610,23 +591,17 @@ export default function ProjectsPage() {
 
   // 更新项目信息（本地修改）
   const updateProject = (projectId: number, field: string, value: any) => {
-    console.log(`🔄 更新项目字段: 项目ID=${projectId}, 字段=${field}, 值=${value}`);
-
     // 记录本地修改
-    setPendingChanges(prev => {
-      const newChanges = {
-        ...prev,
-        projects: {
-          ...prev.projects,
-          [projectId]: {
-            ...prev.projects[projectId],
-            [field]: value
-          }
+    setPendingChanges(prev => ({
+      ...prev,
+      projects: {
+        ...prev.projects,
+        [projectId]: {
+          ...prev.projects[projectId],
+          [field]: value
         }
-      };
-      console.log('📝 更新后的pendingChanges.projects:', newChanges.projects);
-      return newChanges;
-    });
+      }
+    }));
     setHasLocalChanges(true);
 
     // 如果修改的是当前价，则联动计算并更新本地状态

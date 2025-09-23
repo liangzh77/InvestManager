@@ -10,14 +10,8 @@ export async function POST(request: NextRequest) {
       newTransactions
     } = await request.json();
 
-    // 详细调试日志
-    console.log('🔍 批量更新API接收到的数据:');
-    console.log('- 要更新的项目数量:', projects?.length || 0);
-    console.log('- 要更新的交易数量:', transactions?.length || 0);
-    console.log('- 要删除的交易数量:', deletedTransactions?.length || 0);
-    console.log('- 要新建的交易数量:', newTransactions?.length || 0);
-    console.log('- 项目详情:', projects);
-    console.log('- 交易详情:', transactions);
+    // 简化日志
+    console.log(`🔄 批量更新: ${projects?.length || 0}个项目, ${transactions?.length || 0}个交易, ${deletedTransactions?.length || 0}个删除, ${newTransactions?.length || 0}个新建`);
 
     const db = getDatabase();
 
@@ -35,9 +29,6 @@ export async function POST(request: NextRequest) {
           const result = await deleteTransactionStmt.run(transactionId);
           if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
             transactionsDeleted++;
-            console.log(`✅ 删除交易 ${transactionId} 成功`);
-          } else {
-            console.warn(`⚠️ 交易 ${transactionId} 删除无效果，可能记录不存在`);
           }
         } catch (err) {
           console.error(`❌ 删除交易 ${transactionId} 失败:`, err);
@@ -73,9 +64,6 @@ export async function POST(request: NextRequest) {
           );
           if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
             transactionsCreated++;
-            console.log(`✅ 创建交易成功，项目ID: ${newTx.项目ID}`);
-          } else {
-            console.warn(`⚠️ 创建交易结果未知，项目ID: ${newTx.项目ID}`);
           }
         } catch (err) {
           console.error(`❌ 创建交易失败，项目ID: ${newTx.项目ID}:`, err);
@@ -85,7 +73,6 @@ export async function POST(request: NextRequest) {
 
     // 3. 批量更新交易 - 支持更多字段
     if (transactions && transactions.length > 0) {
-      console.log(`🔄 开始更新 ${transactions.length} 个交易...`);
 
       const updateTransactionStmt = db.prepare(`
         UPDATE transactions
@@ -105,23 +92,6 @@ export async function POST(request: NextRequest) {
 
       for (const tx of transactions) {
         try {
-          console.log(`🔧 准备更新交易 ${tx.id}:`, tx);
-
-          // 检查tx对象的所有属性
-          console.log('📋 交易字段详情:', {
-            交易名称: tx.交易名称,
-            交易类型: tx.交易类型,
-            警告方向: tx.警告方向,
-            距离: tx.距离,
-            交易价: tx.交易价,
-            股数: tx.股数,
-            仓位: tx.仓位,
-            交易金额: tx.交易金额,
-            创建时间: tx.创建时间,
-            状态: tx.状态,
-            id: tx.id
-          });
-
           const result = await updateTransactionStmt.run(
             tx.交易名称 || null,
             tx.交易类型 || null,
@@ -136,17 +106,9 @@ export async function POST(request: NextRequest) {
             tx.id
           );
 
-          console.log(`📋 交易 ${tx.id} 更新结果:`, result);
           // 检查更新是否真正成功
-          if (result && typeof result === 'object' && 'changes' in result) {
-            if ((result as any).changes > 0) {
-              transactionsUpdated++;
-              console.log(`✅ 交易 ${tx.id} 更新成功`);
-            } else {
-              console.warn(`⚠️ 交易 ${tx.id} 没有发生变化，可能记录不存在或数据相同`);
-            }
-          } else {
-            console.warn(`⚠️ 交易 ${tx.id} 更新结果未知`);
+          if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
+            transactionsUpdated++;
           }
         } catch (err) {
           console.error(`❌ 更新交易 ${tx.id} 失败:`, err);
@@ -156,7 +118,6 @@ export async function POST(request: NextRequest) {
 
     // 批量更新项目 - 支持更多字段
     if (projects && projects.length > 0) {
-      console.log(`🔄 开始更新 ${projects.length} 个项目...`);
 
       const updateProjectStmt = db.prepare(`
         UPDATE projects
@@ -179,26 +140,6 @@ export async function POST(request: NextRequest) {
 
       for (const proj of projects) {
         try {
-          console.log(`🔧 准备更新项目 ${proj.id}:`, proj);
-
-          // 检查proj对象的所有属性
-          console.log('📋 项目字段详情:', {
-            项目名称: proj.项目名称,
-            项目代号: proj.项目代号,
-            交易类型: proj.交易类型,
-            成本价: proj.成本价,
-            当前价: proj.当前价,
-            股数: proj.股数,
-            仓位: proj.仓位,
-            成本金额: proj.成本金额,
-            当前金额: proj.当前金额,
-            盈亏金额: proj.盈亏金额,
-            项目盈亏率: proj.项目盈亏率,
-            总盈亏率: proj.总盈亏率,
-            状态: proj.状态,
-            id: proj.id
-          });
-
           const result = await updateProjectStmt.run(
             proj.项目名称 || null,
             proj.项目代号 || null,
@@ -216,17 +157,9 @@ export async function POST(request: NextRequest) {
             proj.id
           );
 
-          console.log(`📋 项目 ${proj.id} 更新结果:`, result);
           // 检查更新是否真正成功
-          if (result && typeof result === 'object' && 'changes' in result) {
-            if ((result as any).changes > 0) {
-              projectsUpdated++;
-              console.log(`✅ 项目 ${proj.id} (${proj.项目名称}) 更新成功`);
-            } else {
-              console.warn(`⚠️ 项目 ${proj.id} (${proj.项目名称}) 没有发生变化，可能记录不存在或数据相同`);
-            }
-          } else {
-            console.warn(`⚠️ 项目 ${proj.id} (${proj.项目名称}) 更新结果未知`);
+          if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
+            projectsUpdated++;
           }
         } catch (err) {
           console.error(`❌ 更新项目 ${proj.id} (${proj.项目名称}) 失败:`, err);
