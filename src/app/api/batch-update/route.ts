@@ -22,12 +22,15 @@ export async function POST(request: NextRequest) {
 
       for (const transactionId of deletedTransactions) {
         try {
-          const result = deleteTransactionStmt.run(transactionId);
+          const result = await deleteTransactionStmt.run(transactionId);
           if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
             transactionsDeleted++;
+            console.log(`✅ 删除交易 ${transactionId} 成功`);
+          } else {
+            console.warn(`⚠️ 交易 ${transactionId} 删除无效果，可能记录不存在`);
           }
         } catch (err) {
-          console.error(`删除交易 ${transactionId} 失败:`, err);
+          console.error(`❌ 删除交易 ${transactionId} 失败:`, err);
         }
       }
     }
@@ -43,7 +46,7 @@ export async function POST(request: NextRequest) {
 
       for (const newTx of newTransactions) {
         try {
-          const result = createTransactionStmt.run(
+          const result = await createTransactionStmt.run(
             newTx.项目ID,
             newTx.项目名称,
             newTx.状态,
@@ -60,11 +63,12 @@ export async function POST(request: NextRequest) {
           );
           if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
             transactionsCreated++;
+            console.log(`✅ 创建交易成功，项目ID: ${newTx.项目ID}`);
           } else {
-            transactionsCreated++;
+            console.warn(`⚠️ 创建交易结果未知，项目ID: ${newTx.项目ID}`);
           }
         } catch (err) {
-          console.error(`创建交易失败:`, err);
+          console.error(`❌ 创建交易失败，项目ID: ${newTx.项目ID}:`, err);
         }
       }
     }
@@ -89,7 +93,7 @@ export async function POST(request: NextRequest) {
 
       for (const tx of transactions) {
         try {
-          const result = updateTransactionStmt.run(
+          const result = await updateTransactionStmt.run(
             tx.交易名称,
             tx.交易类型,
             tx.警告方向,
@@ -102,15 +106,19 @@ export async function POST(request: NextRequest) {
             tx.状态,
             tx.id
           );
-          // 兼容不同数据库环境的返回类型
-          if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
-            transactionsUpdated++;
+          // 检查更新是否真正成功
+          if (result && typeof result === 'object' && 'changes' in result) {
+            if ((result as any).changes > 0) {
+              transactionsUpdated++;
+              console.log(`✅ 交易 ${tx.id} 更新成功`);
+            } else {
+              console.warn(`⚠️ 交易 ${tx.id} 没有发生变化，可能记录不存在或数据相同`);
+            }
           } else {
-            // 兜底：如果没有changes属性，认为更新成功
-            transactionsUpdated++;
+            console.warn(`⚠️ 交易 ${tx.id} 更新结果未知`);
           }
         } catch (err) {
-          console.error(`更新交易 ${tx.id} 失败:`, err);
+          console.error(`❌ 更新交易 ${tx.id} 失败:`, err);
         }
       }
     }
@@ -138,7 +146,7 @@ export async function POST(request: NextRequest) {
 
       for (const proj of projects) {
         try {
-          const result = updateProjectStmt.run(
+          const result = await updateProjectStmt.run(
             proj.项目名称,
             proj.项目代号,
             proj.交易类型,
@@ -154,15 +162,19 @@ export async function POST(request: NextRequest) {
             proj.状态,
             proj.id
           );
-          // 兼容不同数据库环境的返回类型
-          if (result && typeof result === 'object' && 'changes' in result && (result as any).changes > 0) {
-            projectsUpdated++;
+          // 检查更新是否真正成功
+          if (result && typeof result === 'object' && 'changes' in result) {
+            if ((result as any).changes > 0) {
+              projectsUpdated++;
+              console.log(`✅ 项目 ${proj.id} (${proj.项目名称}) 更新成功`);
+            } else {
+              console.warn(`⚠️ 项目 ${proj.id} (${proj.项目名称}) 没有发生变化，可能记录不存在或数据相同`);
+            }
           } else {
-            // 兜底：如果没有changes属性，认为更新成功
-            projectsUpdated++;
+            console.warn(`⚠️ 项目 ${proj.id} (${proj.项目名称}) 更新结果未知`);
           }
         } catch (err) {
-          console.error(`更新项目 ${proj.id} 失败:`, err);
+          console.error(`❌ 更新项目 ${proj.id} (${proj.项目名称}) 失败:`, err);
         }
       }
     }
