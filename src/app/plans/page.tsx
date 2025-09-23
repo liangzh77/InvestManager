@@ -411,8 +411,76 @@ export default function PlansPage() {
           });
         }
 
+        // 获取更新前的项目数据
+        const oldProjects = [...projects];
+
         // 刷新项目数据以获取最新股价
         await fetchProjects();
+
+        // 比较价格变化并重新计算距离
+        setTimeout(() => {
+          const transactionUpdates: { [id: number]: Partial<Transaction> } = {};
+          const projectUpdates: { [id: number]: Partial<Project> } = {};
+          let hasChanges = false;
+
+          projects.forEach(newProject => {
+            const oldProject = oldProjects.find(p => p.id === newProject.id);
+
+            // 如果当前价发生变化
+            if (oldProject && Math.abs(newProject.当前价 - oldProject.当前价) > 0.01) {
+              projectUpdates[newProject.id] = {
+                当前价: newProject.当前价
+              };
+
+              // 重新计算相关交易的距离
+              const relatedTransactions = planTransactions.filter(t => t.项目ID === newProject.id);
+
+              relatedTransactions.forEach(transaction => {
+                if (transaction.状态 === '计划' && transaction.警告方向 && transaction.交易价) {
+                  const newDistance = calculateDistance(
+                    transaction.警告方向,
+                    transaction.交易价,
+                    newProject.当前价
+                  );
+
+                  if (Math.abs(newDistance - (transaction.距离 || 0)) > 0.01) {
+                    transactionUpdates[transaction.id] = {
+                      距离: newDistance
+                    };
+                    hasChanges = true;
+                  }
+                }
+              });
+            }
+          });
+
+          if (hasChanges) {
+            // 更新待提交状态
+            setPendingChanges(prev => ({
+              ...prev,
+              projects: {
+                ...prev.projects,
+                ...projectUpdates
+              },
+              transactions: {
+                ...prev.transactions,
+                ...transactionUpdates
+              }
+            }));
+
+            // 更新本地交易状态
+            setPlanTransactions(prev => prev.map(t => {
+              if (transactionUpdates[t.id]) {
+                return { ...t, ...transactionUpdates[t.id] };
+              }
+              return t;
+            }));
+
+            setHasLocalChanges(true);
+            console.log('🔄 检测到股价变化，自动重新计算了交易距离，已设置为待提交状态');
+          }
+        }, 100); // 延迟确保projects状态已更新
+
       } else {
         const errorMsg = '股价查询失败';
         console.error(errorMsg);
@@ -537,6 +605,49 @@ export default function PlansPage() {
     setProjects(prev => prev.map(p =>
       p.id === projectId ? { ...p, 当前价: newPrice } : p
     ));
+
+    // 重新计算相关交易的距离
+    const relatedTransactions = planTransactions.filter(t => t.项目ID === projectId);
+    const transactionUpdates: { [id: number]: Partial<Transaction> } = {};
+    let hasDistanceChanges = false;
+
+    relatedTransactions.forEach(transaction => {
+      if (transaction.状态 === '计划' && transaction.警告方向 && transaction.交易价) {
+        const newDistance = calculateDistance(
+          transaction.警告方向,
+          transaction.交易价,
+          newPrice
+        );
+
+        if (Math.abs(newDistance - (transaction.距离 || 0)) > 0.01) {
+          transactionUpdates[transaction.id] = {
+            距离: newDistance
+          };
+          hasDistanceChanges = true;
+        }
+      }
+    });
+
+    if (hasDistanceChanges) {
+      // 更新交易距离的待提交状态
+      setPendingChanges(prev => ({
+        ...prev,
+        transactions: {
+          ...prev.transactions,
+          ...transactionUpdates
+        }
+      }));
+
+      // 更新本地交易状态
+      setPlanTransactions(prev => prev.map(t => {
+        if (transactionUpdates[t.id]) {
+          return { ...t, ...transactionUpdates[t.id] };
+        }
+        return t;
+      }));
+
+      console.log(`🔄 更新项目 ${projectId} 当前价后，自动重新计算了相关交易的距离`);
+    }
   };
 
   // 计算距离颜色
