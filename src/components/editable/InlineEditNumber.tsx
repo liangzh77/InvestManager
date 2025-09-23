@@ -68,6 +68,7 @@ export function InlineEditNumber({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
       handleSubmit();
     } else if (e.key === 'Escape') {
       handleCancel();

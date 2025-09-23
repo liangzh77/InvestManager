@@ -485,17 +485,69 @@ export default function ProjectsPage() {
             }
           });
 
-          // 如果有股价变化，设置本地修改标记
-          if (hasPriceChanges) {
+          // 重新计算所有交易的距离
+          const transactionUpdates: { [id: number]: Partial<Transaction> } = {};
+          let hasTransactionChanges = false;
+
+          updatedProjects.forEach(project => {
+            const projectTransactions = transactions[project.id] || [];
+
+            projectTransactions.forEach(transaction => {
+              if (transaction.状态 === '计划' && transaction.警告方向 && transaction.交易价) {
+                const newDistance = calculateDistance(
+                  transaction.警告方向,
+                  transaction.交易价,
+                  project.当前价 || 0
+                );
+
+                if (Math.abs(newDistance - (transaction.距离 || 0)) > 0.01) {
+                  transactionUpdates[transaction.id] = {
+                    距离: newDistance
+                  };
+                  hasTransactionChanges = true;
+                }
+              }
+            });
+          });
+
+          // 更新交易状态
+          if (hasTransactionChanges) {
+            setTransactions(prev => {
+              const updated = { ...prev };
+              Object.keys(updated).forEach(projectId => {
+                updated[Number(projectId)] = updated[Number(projectId)].map(t => {
+                  if (transactionUpdates[t.id]) {
+                    return { ...t, ...transactionUpdates[t.id] };
+                  }
+                  return t;
+                });
+              });
+              return updated;
+            });
+          }
+
+          // 如果有变化，设置本地修改标记
+          if (hasPriceChanges || hasTransactionChanges) {
             setPendingChanges(prev => ({
               ...prev,
               projects: {
                 ...prev.projects,
                 ...projectUpdates
+              },
+              transactions: {
+                ...prev.transactions,
+                ...transactionUpdates
               }
             }));
             setHasLocalChanges(true);
-            console.log('🔄 检测到股价变化，已设置为待提交状态');
+
+            if (hasPriceChanges && hasTransactionChanges) {
+              console.log('🔄 检测到股价变化，自动更新了交易距离，已设置为待提交状态');
+            } else if (hasPriceChanges) {
+              console.log('🔄 检测到股价变化，已设置为待提交状态');
+            } else if (hasTransactionChanges) {
+              console.log('🔄 自动更新了交易距离，已设置为待提交状态');
+            }
           }
 
           setProjects(updatedProjects);
@@ -591,6 +643,8 @@ export default function ProjectsPage() {
 
   // 更新项目信息（本地修改）
   const updateProject = (projectId: number, field: string, value: any) => {
+    // 保存当前滚动位置
+    saveScrollPosition();
     // 记录本地修改
     setPendingChanges(prev => ({
       ...prev,
@@ -643,6 +697,9 @@ export default function ProjectsPage() {
         p.id === projectId ? { ...p, [field]: value } : p
       ));
     }
+
+    // 恢复滚动位置
+    restoreScrollPosition();
   };
 
   // 计算函数
@@ -683,8 +740,28 @@ export default function ProjectsPage() {
     return shares * transactionPrice;
   };
 
+  // 保存和恢复滚动位置
+  const saveScrollPosition = () => {
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('projectsPageScrollPosition', window.scrollY.toString());
+    }
+  };
+
+  const restoreScrollPosition = () => {
+    if (typeof window !== 'undefined') {
+      const savedPosition = sessionStorage.getItem('projectsPageScrollPosition');
+      if (savedPosition) {
+        setTimeout(() => {
+          window.scrollTo(0, parseInt(savedPosition));
+        }, 0);
+      }
+    }
+  };
+
   // 更新交易信息（本地修改）
   const updateTransaction = (transactionId: number, field: string, value: any) => {
+    // 保存当前滚动位置
+    saveScrollPosition();
     // 找到当前交易记录
     const currentTransaction = Object.values(transactions)
       .flat()
@@ -784,6 +861,9 @@ export default function ProjectsPage() {
       });
       return updated;
     });
+
+    // 恢复滚动位置
+    restoreScrollPosition();
   };
 
   // 删除交易记录
