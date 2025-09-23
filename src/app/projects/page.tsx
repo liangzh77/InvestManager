@@ -536,6 +536,15 @@ export default function ProjectsPage() {
       // 准备新交易数据（移除临时ID）
       const newTransactionsToCreate = pendingChanges.newTransactions.map(({ id, ...transaction }) => transaction);
 
+      // 调试信息
+      console.log('📋 待提交数据概览:', {
+        pendingChanges,
+        projectsToUpdate,
+        transactionsToUpdate,
+        newTransactionsToCreate,
+        deletedTransactions: pendingChanges.deletedTransactions
+      });
+
       // 调用批量更新API
       const response = await fetch('/api/batch-update', {
         method: 'POST',
@@ -585,17 +594,23 @@ export default function ProjectsPage() {
 
   // 更新项目信息（本地修改）
   const updateProject = (projectId: number, field: string, value: any) => {
+    console.log(`🔄 更新项目字段: 项目ID=${projectId}, 字段=${field}, 值=${value}`);
+
     // 记录本地修改
-    setPendingChanges(prev => ({
-      ...prev,
-      projects: {
-        ...prev.projects,
-        [projectId]: {
-          ...prev.projects[projectId],
-          [field]: value
+    setPendingChanges(prev => {
+      const newChanges = {
+        ...prev,
+        projects: {
+          ...prev.projects,
+          [projectId]: {
+            ...prev.projects[projectId],
+            [field]: value
+          }
         }
-      }
-    }));
+      };
+      console.log('📝 更新后的pendingChanges.projects:', newChanges.projects);
+      return newChanges;
+    });
     setHasLocalChanges(true);
 
     // 如果修改的是当前价，则联动计算并更新本地状态
