@@ -160,20 +160,38 @@ export async function POST(request: NextRequest) {
         try {
           console.log(`🔧 准备更新项目 ${proj.id}:`, proj);
 
+          // 检查proj对象的所有属性
+          console.log('📋 项目字段详情:', {
+            项目名称: proj.项目名称,
+            项目代号: proj.项目代号,
+            交易类型: proj.交易类型,
+            成本价: proj.成本价,
+            当前价: proj.当前价,
+            股数: proj.股数,
+            仓位: proj.仓位,
+            成本金额: proj.成本金额,
+            当前金额: proj.当前金额,
+            盈亏金额: proj.盈亏金额,
+            项目盈亏率: proj.项目盈亏率,
+            总盈亏率: proj.总盈亏率,
+            状态: proj.状态,
+            id: proj.id
+          });
+
           const result = await updateProjectStmt.run(
-            proj.项目名称,
-            proj.项目代号,
-            proj.交易类型,
-            proj.成本价,
-            proj.当前价,
-            proj.股数,
-            proj.仓位,
-            proj.成本金额,
-            proj.当前金额,
-            proj.盈亏金额,
-            proj.项目盈亏率,
-            proj.总盈亏率,
-            proj.状态,
+            proj.项目名称 || null,
+            proj.项目代号 || null,
+            proj.交易类型 || null,
+            proj.成本价 || null,
+            proj.当前价 || null,
+            proj.股数 || null,
+            proj.仓位 || null,
+            proj.成本金额 || null,
+            proj.当前金额 || null,
+            proj.盈亏金额 || null,
+            proj.项目盈亏率 || null,
+            proj.总盈亏率 || null,
+            proj.状态 || null,
             proj.id
           );
 
