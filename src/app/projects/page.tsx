@@ -489,7 +489,7 @@ export default function ProjectsPage() {
           const transactionUpdates: { [id: number]: Partial<Transaction> } = {};
           let hasTransactionChanges = false;
 
-          updatedProjects.forEach(project => {
+          updatedProjects.forEach((project: Project) => {
             const projectTransactions = transactions[project.id] || [];
 
             projectTransactions.forEach(transaction => {
