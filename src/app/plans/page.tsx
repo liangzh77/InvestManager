@@ -427,7 +427,7 @@ export default function PlansPage() {
           const projectUpdates: { [id: number]: Partial<Project> } = {};
           let hasChanges = false;
 
-          updatedProjects.forEach(newProject => {
+          updatedProjects.forEach((newProject: Project) => {
             const oldProject = oldProjects.find(p => p.id === newProject.id);
 
             // 如果当前价发生变化
