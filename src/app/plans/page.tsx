@@ -389,19 +389,19 @@ export default function PlansPage() {
     }
   };
 
-  // 查询股价（只获取股价数据，不调用其他API）
+  // 查询股价（只获取股价数据，不更新数据库）
   const queryStockPrices = async () => {
     try {
       console.log('🔍 开始查询股价...');
-      const priceUpdateRes = await fetch('/api/update-prices', { method: 'POST' });
-      const priceUpdateJson = await priceUpdateRes.json();
+      const priceQueryRes = await fetch('/api/query-prices', { method: 'POST' });
+      const priceQueryJson = await priceQueryRes.json();
 
-      if (priceUpdateJson.success) {
-        console.log('股价查询结果:', priceUpdateJson.data);
+      if (priceQueryJson.success) {
+        console.log('股价查询结果:', priceQueryJson.data);
 
         // 检查具体的失败项目并记录错误
-        if (priceUpdateJson.data?.results) {
-          const results = priceUpdateJson.data.results;
+        if (priceQueryJson.data?.results) {
+          const results = priceQueryJson.data.results;
           Object.keys(results).forEach(projectName => {
             const result = results[projectName];
             if (!result.success) {
@@ -411,83 +411,91 @@ export default function PlansPage() {
           });
         }
 
-        // 获取更新前的项目数据
-        const oldProjects = [...projects];
+        // 根据查询结果更新项目状态和计算距离
+        const transactionUpdates: { [id: number]: Partial<Transaction> } = {};
+        const projectUpdates: { [id: number]: Partial<Project> } = {};
+        let hasChanges = false;
 
-        // 刷新项目数据以获取最新股价
-        const projectsData = await cachedApiCalls.projects();
-        if (projectsData.success) {
-          const updatedProjects = projectsData.data.sort((a: Project, b: Project) =>
-            (a.排序顺序 || 0) - (b.排序顺序 || 0)
-          );
-          setProjects(updatedProjects);
+        if (priceQueryJson.data?.results) {
+          const results = priceQueryJson.data.results;
 
-          // 立即比较价格变化并重新计算距离
-          const transactionUpdates: { [id: number]: Partial<Transaction> } = {};
-          const projectUpdates: { [id: number]: Partial<Project> } = {};
-          let hasChanges = false;
+          projects.forEach(project => {
+            const projectResult = results[project.项目名称];
 
-          updatedProjects.forEach((newProject: Project) => {
-            const oldProject = oldProjects.find(p => p.id === newProject.id);
+            if (projectResult?.success && projectResult.newPrice) {
+              const oldPrice = project.当前价;
+              const newPrice = projectResult.newPrice;
 
-            // 如果当前价发生变化
-            if (oldProject && Math.abs(newProject.当前价 - oldProject.当前价) > 0.01) {
-              console.log(`🔄 检测到价格变化: ${newProject.项目名称} ${oldProject.当前价} -> ${newProject.当前价}`);
+              // 如果当前价发生变化
+              if (Math.abs(newPrice - oldPrice) > 0.01) {
+                console.log(`🔄 检测到价格变化: ${project.项目名称} ${oldPrice} -> ${newPrice}`);
 
-              projectUpdates[newProject.id] = {
-                当前价: newProject.当前价
-              };
+                // 更新项目的当前价到待提交状态
+                projectUpdates[project.id] = {
+                  当前价: newPrice
+                };
 
-              // 重新计算相关交易的距离
-              const relatedTransactions = planTransactions.filter(t => t.项目ID === newProject.id);
+                // 重新计算相关交易的距离
+                const relatedTransactions = planTransactions.filter(t => t.项目ID === project.id);
 
-              relatedTransactions.forEach(transaction => {
-                if (transaction.状态 === '计划' && transaction.警告方向 && transaction.交易价) {
-                  const newDistance = calculateDistance(
-                    transaction.警告方向,
-                    transaction.交易价,
-                    newProject.当前价
-                  );
+                relatedTransactions.forEach(transaction => {
+                  if (transaction.状态 === '计划' && transaction.警告方向 && transaction.交易价) {
+                    const newDistance = calculateDistance(
+                      transaction.警告方向,
+                      transaction.交易价,
+                      newPrice
+                    );
 
-                  if (Math.abs(newDistance - (transaction.距离 || 0)) > 0.01) {
-                    console.log(`📏 更新交易距离: 项目${newProject.项目名称} 交易${transaction.id} ${transaction.距离} -> ${newDistance}`);
-                    transactionUpdates[transaction.id] = {
-                      距离: newDistance
-                    };
-                    hasChanges = true;
+                    if (Math.abs(newDistance - (transaction.距离 || 0)) > 0.01) {
+                      console.log(`📏 更新交易距离: 项目${project.项目名称} 交易${transaction.id} ${transaction.距离} -> ${newDistance}`);
+                      transactionUpdates[transaction.id] = {
+                        距离: newDistance
+                      };
+                      hasChanges = true;
+                    }
                   }
-                }
-              });
+                });
+
+                hasChanges = true;
+              }
             }
           });
+        }
 
-          if (hasChanges) {
-            // 更新待提交状态
-            setPendingChanges(prev => ({
-              ...prev,
-              projects: {
-                ...prev.projects,
-                ...projectUpdates
-              },
-              transactions: {
-                ...prev.transactions,
-                ...transactionUpdates
-              }
-            }));
+        if (hasChanges) {
+          // 更新待提交状态
+          setPendingChanges(prev => ({
+            ...prev,
+            projects: {
+              ...prev.projects,
+              ...projectUpdates
+            },
+            transactions: {
+              ...prev.transactions,
+              ...transactionUpdates
+            }
+          }));
 
-            // 更新本地交易状态
-            setPlanTransactions(prev => prev.map(t => {
-              if (transactionUpdates[t.id]) {
-                return { ...t, ...transactionUpdates[t.id] };
-              }
-              return t;
-            }));
+          // 更新本地项目状态（显示新价格）
+          setProjects(prev => prev.map(p => {
+            if (projectUpdates[p.id]) {
+              return { ...p, ...projectUpdates[p.id] };
+            }
+            return p;
+          }));
 
-            setHasLocalChanges(true);
-            console.log('🔄 检测到股价变化，自动重新计算了交易距离，已设置为待提交状态');
-          } else {
-            console.log('💡 股价查询完成，但没有价格变化或相关交易');
-          }
+          // 更新本地交易状态
+          setPlanTransactions(prev => prev.map(t => {
+            if (transactionUpdates[t.id]) {
+              return { ...t, ...transactionUpdates[t.id] };
+            }
+            return t;
+          }));
+
+          setHasLocalChanges(true);
+          console.log('🔄 检测到股价变化，自动更新了当前价和交易距离，已设置为待提交状态');
+        } else {
+          console.log('💡 股价查询完成，但没有价格变化');
         }
 
       } else {
