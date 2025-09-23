@@ -568,8 +568,8 @@ export default function ProjectsPage() {
         api.clearTransactions();
         api.clearOverview();
 
-        // 重新加载数据
-        Promise.all([fetchProjects(), fetchAllTransactions(), fetchTotalAmount()]);
+        // 重新加载数据（移除 fetchTotalAmount 调用）
+        Promise.all([fetchProjects(), fetchAllTransactions()]);
       } else {
         const errorMsg = `提交失败: ${result.error}`;
         console.error(errorMsg);
@@ -897,11 +897,24 @@ export default function ProjectsPage() {
       if (data.success) {
         // 将新项目添加到本地状态
         setProjects(prev => [data.data, ...prev]);
-        
+
         // 初始化该项目的交易记录为空数组
         setTransactions(prev => ({
           ...prev,
           [data.data.id]: []
+        }));
+
+        // 新建项目后，设置需要提交状态
+        setHasLocalChanges(true);
+        // 记录新创建的项目到待提交列表
+        setPendingChanges(prev => ({
+          ...prev,
+          projects: {
+            ...prev.projects,
+            [data.data.id]: {
+              项目名称: data.data.项目名称
+            }
+          }
         }));
       } else {
         console.error('创建项目失败:', data.error);
