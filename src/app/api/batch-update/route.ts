@@ -85,6 +85,8 @@ export async function POST(request: NextRequest) {
 
     // 3. 批量更新交易 - 支持更多字段
     if (transactions && transactions.length > 0) {
+      console.log(`🔄 开始更新 ${transactions.length} 个交易...`);
+
       const updateTransactionStmt = db.prepare(`
         UPDATE transactions
         SET
@@ -103,19 +105,38 @@ export async function POST(request: NextRequest) {
 
       for (const tx of transactions) {
         try {
+          console.log(`🔧 准备更新交易 ${tx.id}:`, tx);
+
+          // 检查tx对象的所有属性
+          console.log('📋 交易字段详情:', {
+            交易名称: tx.交易名称,
+            交易类型: tx.交易类型,
+            警告方向: tx.警告方向,
+            距离: tx.距离,
+            交易价: tx.交易价,
+            股数: tx.股数,
+            仓位: tx.仓位,
+            交易金额: tx.交易金额,
+            创建时间: tx.创建时间,
+            状态: tx.状态,
+            id: tx.id
+          });
+
           const result = await updateTransactionStmt.run(
-            tx.交易名称,
-            tx.交易类型,
-            tx.警告方向,
-            tx.距离,
-            tx.交易价,
-            tx.股数,
-            tx.仓位,
-            tx.交易金额,
-            tx.创建时间,
-            tx.状态,
+            tx.交易名称 || null,
+            tx.交易类型 || null,
+            tx.警告方向 || null,
+            tx.距离 || null,
+            tx.交易价 || null,
+            tx.股数 || null,
+            tx.仓位 || null,
+            tx.交易金额 || null,
+            tx.创建时间 || null,
+            tx.状态 || null,
             tx.id
           );
+
+          console.log(`📋 交易 ${tx.id} 更新结果:`, result);
           // 检查更新是否真正成功
           if (result && typeof result === 'object' && 'changes' in result) {
             if ((result as any).changes > 0) {
