@@ -415,19 +415,25 @@ export default function PlansPage() {
         const oldProjects = [...projects];
 
         // 刷新项目数据以获取最新股价
-        await fetchProjects();
+        const projectsData = await cachedApiCalls.projects();
+        if (projectsData.success) {
+          const updatedProjects = projectsData.data.sort((a: Project, b: Project) =>
+            (a.排序顺序 || 0) - (b.排序顺序 || 0)
+          );
+          setProjects(updatedProjects);
 
-        // 比较价格变化并重新计算距离
-        setTimeout(() => {
+          // 立即比较价格变化并重新计算距离
           const transactionUpdates: { [id: number]: Partial<Transaction> } = {};
           const projectUpdates: { [id: number]: Partial<Project> } = {};
           let hasChanges = false;
 
-          projects.forEach(newProject => {
+          updatedProjects.forEach(newProject => {
             const oldProject = oldProjects.find(p => p.id === newProject.id);
 
             // 如果当前价发生变化
             if (oldProject && Math.abs(newProject.当前价 - oldProject.当前价) > 0.01) {
+              console.log(`🔄 检测到价格变化: ${newProject.项目名称} ${oldProject.当前价} -> ${newProject.当前价}`);
+
               projectUpdates[newProject.id] = {
                 当前价: newProject.当前价
               };
@@ -444,6 +450,7 @@ export default function PlansPage() {
                   );
 
                   if (Math.abs(newDistance - (transaction.距离 || 0)) > 0.01) {
+                    console.log(`📏 更新交易距离: 项目${newProject.项目名称} 交易${transaction.id} ${transaction.距离} -> ${newDistance}`);
                     transactionUpdates[transaction.id] = {
                       距离: newDistance
                     };
@@ -478,8 +485,10 @@ export default function PlansPage() {
 
             setHasLocalChanges(true);
             console.log('🔄 检测到股价变化，自动重新计算了交易距离，已设置为待提交状态');
+          } else {
+            console.log('💡 股价查询完成，但没有价格变化或相关交易');
           }
-        }, 100); // 延迟确保projects状态已更新
+        }
 
       } else {
         const errorMsg = '股价查询失败';
