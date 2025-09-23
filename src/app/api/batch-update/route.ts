@@ -9,6 +9,16 @@ export async function POST(request: NextRequest) {
       deletedTransactions,
       newTransactions
     } = await request.json();
+
+    // 详细调试日志
+    console.log('🔍 批量更新API接收到的数据:');
+    console.log('- 要更新的项目数量:', projects?.length || 0);
+    console.log('- 要更新的交易数量:', transactions?.length || 0);
+    console.log('- 要删除的交易数量:', deletedTransactions?.length || 0);
+    console.log('- 要新建的交易数量:', newTransactions?.length || 0);
+    console.log('- 项目详情:', projects);
+    console.log('- 交易详情:', transactions);
+
     const db = getDatabase();
 
     let transactionsUpdated = 0;
@@ -125,6 +135,8 @@ export async function POST(request: NextRequest) {
 
     // 批量更新项目 - 支持更多字段
     if (projects && projects.length > 0) {
+      console.log(`🔄 开始更新 ${projects.length} 个项目...`);
+
       const updateProjectStmt = db.prepare(`
         UPDATE projects
         SET
@@ -146,6 +158,8 @@ export async function POST(request: NextRequest) {
 
       for (const proj of projects) {
         try {
+          console.log(`🔧 准备更新项目 ${proj.id}:`, proj);
+
           const result = await updateProjectStmt.run(
             proj.项目名称,
             proj.项目代号,
@@ -162,6 +176,8 @@ export async function POST(request: NextRequest) {
             proj.状态,
             proj.id
           );
+
+          console.log(`📋 项目 ${proj.id} 更新结果:`, result);
           // 检查更新是否真正成功
           if (result && typeof result === 'object' && 'changes' in result) {
             if ((result as any).changes > 0) {
