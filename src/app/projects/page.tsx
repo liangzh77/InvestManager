@@ -546,18 +546,34 @@ export default function ProjectsPage() {
       });
 
       // 调用批量更新API
+      console.log('📤 发送请求到 /api/batch-update...');
+
+      const requestBody = {
+        transactions: transactionsToUpdate,
+        projects: projectsToUpdate,
+        deletedTransactions: pendingChanges.deletedTransactions,
+        newTransactions: newTransactionsToCreate
+      };
+
+      console.log('📦 请求体内容:', requestBody);
+
       const response = await fetch('/api/batch-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transactions: transactionsToUpdate,
-          projects: projectsToUpdate,
-          deletedTransactions: pendingChanges.deletedTransactions,
-          newTransactions: newTransactionsToCreate
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('📡 响应状态:', response.status, response.statusText);
+
+      if (!response.ok) {
+        console.error('❌ API请求失败:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('❌ 错误详情:', errorText);
+        throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+      }
+
       const result = await response.json();
+      console.log('📥 API响应结果:', result);
       if (result.success) {
         const totalOperations =
           (result.data.transactionsDeleted || 0) +
