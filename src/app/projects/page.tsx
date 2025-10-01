@@ -862,6 +862,42 @@ export default function ProjectsPage() {
       return updated;
     });
 
+    // 重新计算并更新项目指标
+    const updatedTransactions = transactions[currentTransaction.项目ID]?.map(t =>
+      t.id === transactionId ? { ...t, ...updateData } : t
+    ) || [];
+
+    const metrics = calculateProjectMetrics(updatedTransactions, currentPrice, totalAmount);
+
+    // 更新项目的计算字段
+    const projectUpdateData = {
+      成本价: metrics.成本价,
+      股数: metrics.股数,
+      仓位: metrics.仓位,
+      成本金额: metrics.成本金额,
+      当前金额: metrics.当前金额,
+      盈亏金额: metrics.盈亏金额,
+      项目盈亏率: metrics.项目盈亏率,
+      总盈亏率: metrics.总盈亏率,
+    };
+
+    // 记录项目字段的本地修改
+    setPendingChanges(prev => ({
+      ...prev,
+      projects: {
+        ...prev.projects,
+        [currentTransaction.项目ID]: {
+          ...prev.projects[currentTransaction.项目ID],
+          ...projectUpdateData
+        }
+      }
+    }));
+
+    // 更新本地项目状态
+    setProjects(prev => prev.map(p =>
+      p.id === currentTransaction.项目ID ? { ...p, ...projectUpdateData } : p
+    ));
+
     // 恢复滚动位置
     restoreScrollPosition();
   };
@@ -883,10 +919,45 @@ export default function ProjectsPage() {
     }
 
     // 从本地状态中移除交易记录
+    const updatedTransactions = transactions[projectId]?.filter(t => t.id !== transactionId) || [];
     setTransactions(prev => ({
       ...prev,
-      [projectId]: prev[projectId]?.filter(t => t.id !== transactionId) || []
+      [projectId]: updatedTransactions
     }));
+
+    // 重新计算并更新项目指标
+    const project = projects.find(p => p.id === projectId);
+    if (project) {
+      const metrics = calculateProjectMetrics(updatedTransactions, project.当前价 || 0, totalAmount);
+
+      const projectUpdateData = {
+        成本价: metrics.成本价,
+        股数: metrics.股数,
+        仓位: metrics.仓位,
+        成本金额: metrics.成本金额,
+        当前金额: metrics.当前金额,
+        盈亏金额: metrics.盈亏金额,
+        项目盈亏率: metrics.项目盈亏率,
+        总盈亏率: metrics.总盈亏率,
+      };
+
+      // 记录项目字段的本地修改
+      setPendingChanges(prev => ({
+        ...prev,
+        projects: {
+          ...prev.projects,
+          [projectId]: {
+            ...prev.projects[projectId],
+            ...projectUpdateData
+          }
+        }
+      }));
+
+      // 更新本地项目状态
+      setProjects(prev => prev.map(p =>
+        p.id === projectId ? { ...p, ...projectUpdateData } : p
+      ));
+    }
 
     // 标记有本地修改
     setHasLocalChanges(true);
